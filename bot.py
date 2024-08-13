@@ -1,18 +1,21 @@
 import pandas as pd
 import json
+import time
 import argparse
 from datetime import datetime
 
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.common.alert import Alert
 from selenium.webdriver.support.ui import Select, WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import WebDriverException, TimeoutException
 
 def load_json(file):
+
     try:
-        with open('credentials.json', 'r', encoding='utf-8') as file:
-            data = json.load(file)
+        with open(file, 'r', encoding='utf-8') as F:
+            data = json.load(F)
             return data
     except FileNotFoundError:
         print(f"FNF: File '{file}' not found.")
@@ -26,11 +29,11 @@ def wait_page_loading(driver, timeout=10):
         WebDriverWait(driver, timeout).until(
             lambda d: d.execute_script("return document.readyState") == "complete"
         )
-        print("La página está completamente cargada.")
     except TimeoutException:
-        print("La página no se cargó completamente en el tiempo esperado.")
+        print("TLE: Page did not load in time")
 
 def get_webdriver():
+
     try:
         driver = webdriver.Chrome()
     except WebDriverException:
@@ -40,68 +43,220 @@ def get_webdriver():
             return None
     return driver
 
-def main(driver, credentials):
+def verify_age(birth_date):
+    age = (datetime.now() - birth_date).days // 365
+    return age >= 18
 
-    if driver is not None and credentials is not None:
+def get_exdata(file, split_point):
 
-        driver.get(credentials['url'])
+    half_l, half_r = None, None
+    
+    try:
+        df = pd.read_excel(file)
+        half_l = df.iloc[:, :split_point]
+        half_r = df.iloc[:, split_point:].copy()
+        half_l = half_l.rename(columns={half_l.columns[-1]: 'EMP_DNI'})
+        half_r[half_l.columns[-1]] = half_l.iloc[:, -1]
+        half_r = half_r.rename(columns={half_r.columns[1]: 'BEN_DNI'})
+        half_r = half_r.rename(columns={half_r.columns[0]: half_l.columns[0]})
 
-        driver.find_element(By.ID, 'txtRuc').send_keys(credentials['ruc'])
-        driver.find_element(By.ID, 'txtUsuario').send_keys(credentials['user'])
-        driver.find_element(By.ID, 'txtContrasena').send_keys(credentials['psw'])
+        half_l = half_l.drop_duplicates()
+
+        half_r['ADULT'] = half_r['FECHA DE NACIMIENTO'].apply(verify_age)
+
+    except FileNotFoundError:
+        print(f"FNF: File '{file}' not found.")
+
+    return half_l, half_r
+
+def login_employer_credentials(driver, auth_data):
+
+    if driver is not None and auth_data is not None:
+
+        print(driver)
+
+        driver.get(auth_data['url'])
+
+        driver.find_element(By.ID, 'txtRuc').send_keys(auth_data['ruc'])
+        driver.find_element(By.ID, 'txtUsuario').send_keys(auth_data['user'])
+        driver.find_element(By.ID, 'txtContrasena').send_keys(auth_data['psw'])
         driver.find_element(By.ID, 'btnAceptar').click()
 
         wait_page_loading(driver)
 
-        driver.execute_script('f_segurovida();')
+"""
+Nueva poliza: f_nuevoPoliza();
+aceptar terminos: aceptarTerminos();
 
-        wait_page_loading(driver)
+<ID/NAME, VALUE IN EXCEL>
+v_codtra: DNI
+d_fecnactra: FECHA_NACIM
+v_apepattra, v_apemattra, v_nomtra: NOMBRES (AP AM, FN SN)
+v_codnactra: PERÚ
+v_gentraM, v_gentraF: SEXO (M | F)
 
-        Select(driver.find_element(By.NAME, 'v_ruc_ase')).select_by_visible_text('PACIFICO COMPAÑIA DE SEGUROS Y REASEGUROS')
-        driver.execute_script('buscar();')
+"""
 
-        wait_page_loading(driver)
+def update_renew_insurance(driver, auth_data, employee, beneficiers):
 
-        insurance_table = driver.find_element(By.ID, 'lstSeguro').find_element(By.TAG_NAME, 'tbody')
+    def verify_beneficiaries(dni):
 
-        current_date = datetime.now()
-
-        closest_date_diff = None
-        closest_check = None
-
-        for row in list(insurance_table.find_elements(By.TAG_NAME, 'tr')):
-            cols = row.find_elements(By.TAG_NAME, 'td')
-
-            check = cols[0]
-            start_date =  datetime.strptime(cols[3].text.strip(), "%d/%m/%Y")
-
-            date_diff = abs((start_date - current_date).days)
-
-            if closest_date_diff is None or date_diff < closest_date_diff:
-                closest_date_diff = date_diff
-                closest_check = check
-            
-        closest_check.click()
-
-        driver.execute_script('altasbajas();')
-
-        wait_page_loading(driver)
-
-        #EXCEL REQUEST
-
-        driver.find_element(By.NAME, 'v_codtrabus').send_keys('75410305')
+        driver.find_element(By.NAME, 'v_codtrabus').send_keys(dni)
         driver.execute_script('buscarTraLisBD();')
 
         wait_page_loading(driver)
 
-        input()
+        insurance_employee = driver.find_element(By.ID, 'lstPolizaTrabajador').find_element(By.TAG_NAME, 'tbody')
+        columns = list(insurance_employee.find_elements(By.TAG_NAME, 'tr'))
+        print(columns)
+        if len(columns) > 1:
+            print('worker exist')
+            cell = driver.find_element(By.XPATH, '//a[img[@title="Ingresar Beneficiario(s)"]]')
+            print(cell.get_attribute('href'))
+            cell.click()
+        else:
+            print('worker does not exist')
+            return False
+        return True
+    
+    def send_id_by_type(dni_column, ben=False):
+        """
+        This function sends the document to RENIEC
+        """
+        (select_id, input_id) = ('v_codtdocide', 'v_codtra') if not ben else ('v_codtdocideben', 'v_codben')
+        Select(driver.find_element(By.ID, select_id)).select_by_visible_text('DOCUMENTO NACIONAL DE IDENTIDAD')
+        driver.find_element(By.ID, input_id).send_keys(dni_column, Keys.RETURN)
 
-        driver.quit()
+    driver.execute_script('f_segurovida();')
+
+    wait_page_loading(driver)
+
+    Select(driver.find_element(By.NAME, 'v_ruc_ase')).select_by_visible_text('PACIFICO COMPAÑIA DE SEGUROS Y REASEGUROS')
+    driver.execute_script('buscar();')
+
+    wait_page_loading(driver)
+
+    insurance_table = driver.find_element(By.ID, 'lstSeguro').find_element(By.TAG_NAME, 'tbody')
+
+    current_date = datetime.now()
+
+    closest_date_diff = None
+    closest_check = None
+
+    for row in list(insurance_table.find_elements(By.TAG_NAME, 'tr')):
+        cols = row.find_elements(By.TAG_NAME, 'td')
+
+        check = cols[0]
+        start_date =  datetime.strptime(cols[3].text.strip(), "%d/%m/%Y")
+
+        date_diff = abs((start_date - current_date).days)
+
+        if closest_date_diff is None or date_diff < closest_date_diff:
+            closest_date_diff = date_diff
+            closest_check = check
+        
+    closest_check.click()
+
+    driver.execute_script('altasbajas();')
+
+    wait_page_loading(driver)
+
+    if not verify_beneficiaries(employee['EMP_DNI']):
+
+        wait_page_loading(driver)
+
+        send_id_by_type(employee['EMP_DNI'])
+
+        wait_page_loading(driver)
+
+        driver.find_element(By.XPATH, "//input[@name='v_flgreing' and @value='N']").click()
+        driver.find_element(By.XPATH, "//input[@name='v_flgcontseg' and @value='N']").click()
+        if auth_data['insurance date'] is not None:
+            date_value = auth_data['insurance date']
+        else:
+            date_value = driver.find_element(By.ID, 'd_fecing').get_attribute('value')
+        driver.execute_script("arguments[0].setAttribute('value', arguments[1]);", driver.find_element(By.ID, 'd_fecasetra'), date_value)
+        driver.find_element(By.NAME, 'n_monrem').send_keys(auth_data['const salary'])
+        #driver.find_element(By.NAME, 'v_aceptaingreso').click()
+        driver.execute_script('grabarPolizaxTra();')
+
+        alert = driver.switch_to.alert
+        alert.accept()
+
+        wait_page_loading(driver)
+
+        #verify_beneficiaries(employee['EMP_DNI'])
+
+    #window_list = driver.window_handles
+    #driver.switch_to.window(window_list[1]) 
+
+    for index, beneficier in beneficiers.iterrows():
+        wait_page_loading(driver)
+
+        send_id_by_type(beneficier['BEN_DNI'])
+
+        if not beneficier['ADULT']:
+
+            driver.find_element(By.NAME, 'v_apepatben').send_keys(beneficier['APELLIDO PATERNO'])
+            driver.find_element(By.NAME, 'v_apematben').send_keys(beneficier['APELLIDO MATERNO'])
+            driver.find_element(By.NAME, 'v_nomben').send_keys(beneficier['NOMBRES'])
+            driver.find_element(By.NAME, 'v_fecnacben').send_keys(beneficier['FECHA DE NACIMIENTO'])
+            driver.find_element(By.NAME, 'v_direccion').send_keys(beneficier['DIRECCIÓN'])
+            Select(driver.find_element(By.NAME, 'v_coddepBen')).select_by_visible_text(str(beneficier['DEPARTAMENTO']).capitalize())
+            Select(driver.find_element(By.NAME, 'v_codproBen')).select_by_visible_text(str(beneficier['PROVINCIA']).capitalize())
+            Select(driver.find_element(By.NAME, 'v_coddisBen')).select_by_visible_text(str(beneficier['DISTRITO']).capitalize())
+            
+            if beneficier['SEXO'].capitalize() == 'MASCULINO':
+                driver.find_element(By.NAME, 'v_gentraM').click()
+            else:
+                driver.find_element(By.NAME, 'v_gentraF').click()
+
+        relationship = auth_data['lookup[relationship]'][beneficier['VINCULO FAMILIAR']]
+        Select(driver.find_element(By.NAME, 'n_codvinfam')).select_by_visible_text(relationship)
+
+        time.sleep(2)
+
+        wait_page_loading(driver)
+        
+        driver.execute_script('grabarBeneficiario();')
+
+        wait_page_loading(driver)
+
+        alert = driver.switch_to.alert
+        alert.accept()
+
+    input()
+
+    driver.execute_script('regresar();')
+    #driver.switch_to.window(window_list[0]) 
+
+    driver.quit()
     
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Seguro Vida Ley WebBot.')
-    parser.add_argument('credentials_file', type=str, help='Path to the credentials JSON (RUC, Password, ...)')
+    parser = argparse.ArgumentParser(description='Seguro Vida Ley BotWeb.')
+    parser.add_argument('auth_file', type=str, help='Path to the authentication JSON (RUC, Password, ...)')
 
     args = parser.parse_args()
-    main(get_webdriver(), load_json(args.credentials_file))
-        
+
+    driver = get_webdriver()
+    auth_data = load_json(args.auth_file)
+
+    assert(auth_data is not None)
+    employees_data, beneficiers_data = get_exdata('datos.xlsx', 2)
+
+    print(employees_data.info(), beneficiers_data.info())
+    print(employees_data.head())
+
+    login_employer_credentials(driver, auth_data)
+
+    for index, employee in employees_data.iterrows():
+        filtered_beneficiers = beneficiers_data.loc[beneficiers_data['EMP_DNI'] == employee['EMP_DNI']]
+        print('Number of beneficiers: ', len(filtered_beneficiers))
+        update_renew_insurance(driver, auth_data, employee, filtered_beneficiers)
+        break
+
+    """
+    
+    for index, employee_credentials in employees_data.iterrows():
+        signup_insurance(driver, employee_credentials)
+        break"""
