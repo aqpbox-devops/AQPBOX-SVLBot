@@ -29,6 +29,7 @@ def load_json(file):
         return None
 
 def wait_page_loading(driver, timeout=10):
+
     try:
         WebDriverWait(driver, timeout).until(
             lambda d: d.execute_script("return document.readyState") == "complete"
@@ -52,6 +53,7 @@ def get_webdriver():
     return driver
 
 def verify_age(birth_date):
+    
     age = (datetime.now() - birth_date).days // 365
     return age >= 18
 
@@ -67,6 +69,12 @@ def get_exdata(file, split_point):
         half_r[half_l.columns[-1]] = half_l.iloc[:, -1]
         half_r = half_r.rename(columns={half_r.columns[1]: 'BEN_DNI'})
         half_r = half_r.rename(columns={half_r.columns[0]: half_l.columns[0]})
+
+        dni_columns_l = half_l.filter(like='DNI').columns
+        half_l[dni_columns_l] = half_l[dni_columns_l].applymap(lambda x: str(x).zfill(8))
+
+        dni_columns_r = half_r.filter(like='DNI').columns
+        half_r[dni_columns_r] = half_r[dni_columns_r].applymap(lambda x: str(x).zfill(8))
 
         half_l = half_l.drop_duplicates()
 
@@ -105,7 +113,6 @@ def update_renew_insurance(driver, auth_data, employee, beneficiers):
         if list(insurance_employee.find_elements(By.TAG_NAME, 'tr'))[0].get_attribute('class') != 'empty':
             print('worker exist')
             cell = driver.find_element(By.XPATH, '//a[img[@title="Ingresar Beneficiario(s)"]]')
-            print(cell.get_attribute('href'))
             cell.click()
             return True
         return False
@@ -170,10 +177,8 @@ def update_renew_insurance(driver, auth_data, employee, beneficiers):
             date_value = auth_data['insurance date']
         else:
             date_value = driver.find_element(By.ID, 'd_fecing').get_attribute('value')
-        print('DATEVAL fecing: ', type(date_value), date_value)
         driver.execute_script("arguments[0].setAttribute('value', arguments[1]);", driver.find_element(By.ID, 'd_fecasetra'), date_value)
         driver.find_element(By.NAME, 'n_monrem').send_keys(auth_data['const salary'])
-        #driver.find_element(By.NAME, 'v_aceptaingreso').click()
         driver.execute_script('grabarPolizaxTra();')
 
         wait_page_loading(driver)
@@ -190,31 +195,26 @@ def update_renew_insurance(driver, auth_data, employee, beneficiers):
 
         if not beneficier['ADULT']:
 
-            time.sleep(0.5)
+            time.sleep(0.25)
             
             driver.find_element(By.XPATH, "//input[@name='answer' and @value='yes']").click()
 
-            time.sleep(0.5)
+            time.sleep(0.25)
 
             send_id_by_type(beneficier['BEN_DNI'], ben=True, enter=False)
             driver.find_element(By.NAME, 'v_apepatben').send_keys(beneficier['APELLIDO PATERNO'])
             driver.find_element(By.NAME, 'v_apematben').send_keys(beneficier['APELLIDO MATERNO'])
             driver.find_element(By.NAME, 'v_nomben').send_keys(beneficier['NOMBRES'])
             date_value = beneficier['FECHA DE NACIMIENTO'].strftime("%d/%m/%Y")
-            print(date_value)
-            #driver.find_element(By.ID, 'd_fecnacben').send_keys(date_value)
             driver.execute_script("document.getElementById('d_fecnacben').value = arguments[0];", date_value)
-            print("ok1")
-            #driver.execute_script("arguments[0].setAttribute('value', arguments[1]);", driver.find_element(By.ID, 'd_fecnacben'), date_value)
             driver.find_element(By.NAME, 'v_direccion').send_keys(beneficier['DIRECCIÓN'])
-            print("ok2")
             dept = beneficier['DEPARTAMENTO'].upper()
             prov = beneficier['PROVINCIA'].upper()
             dist = beneficier['DISTRITO'].upper()
             Select(driver.find_element(By.NAME, 'v_coddepBen')).select_by_visible_text(dept)
-            time.sleep(0.3)
+            time.sleep(0.15)
             Select(driver.find_element(By.NAME, 'v_codproBen')).select_by_visible_text(prov)
-            time.sleep(0.3)
+            time.sleep(0.15)
             Select(driver.find_element(By.NAME, 'v_coddisBen')).select_by_visible_text(dist)
             if beneficier['SEXO'].upper() == 'MASCULINO':
                 driver.find_element(By.ID, 'v_gentraM').click()
@@ -251,7 +251,7 @@ if __name__ == '__main__':
     employees_data, beneficiers_data = get_exdata(args.data_file, 2)
 
     print(employees_data.info(), beneficiers_data.info())
-    print(employees_data.head())
+    print(employees_data.head(), beneficiers_data.head())
 
     login_employer_credentials(driver, auth_data)
 
@@ -259,6 +259,6 @@ if __name__ == '__main__':
         filtered_beneficiers = beneficiers_data.loc[beneficiers_data['EMP_DNI'] == employee['EMP_DNI']]
         print('Number of beneficiers: ', len(filtered_beneficiers))
         update_renew_insurance(driver, auth_data, employee, filtered_beneficiers)
-        break
 
+    print('EVERYTHING WORKS OK')
     driver.quit()
