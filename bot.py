@@ -84,19 +84,6 @@ def login_employer_credentials(driver, auth_data):
 
         wait_page_loading(driver)
 
-"""
-Nueva poliza: f_nuevoPoliza();
-aceptar terminos: aceptarTerminos();
-
-<ID/NAME, VALUE IN EXCEL>
-v_codtra: DNI
-d_fecnactra: FECHA_NACIM
-v_apepattra, v_apemattra, v_nomtra: NOMBRES (AP AM, FN SN)
-v_codnactra: PERÚ
-v_gentraM, v_gentraF: SEXO (M | F)
-
-"""
-
 def update_renew_insurance(driver, auth_data, employee, beneficiers):
 
     def verify_beneficiaries(dni):
@@ -107,17 +94,13 @@ def update_renew_insurance(driver, auth_data, employee, beneficiers):
         wait_page_loading(driver)
 
         insurance_employee = driver.find_element(By.ID, 'lstPolizaTrabajador').find_element(By.TAG_NAME, 'tbody')
-        columns = list(insurance_employee.find_elements(By.TAG_NAME, 'tr'))
-        print(columns)
-        if len(columns) > 1:
+        if list(insurance_employee.find_elements(By.TAG_NAME, 'tr'))[0].get_attribute('class') != 'empty':
             print('worker exist')
             cell = driver.find_element(By.XPATH, '//a[img[@title="Ingresar Beneficiario(s)"]]')
             print(cell.get_attribute('href'))
             cell.click()
-        else:
-            print('worker does not exist')
-            return False
-        return True
+            return True
+        return False
     
     def send_id_by_type(dni_column, ben=False):
         """
@@ -180,12 +163,9 @@ def update_renew_insurance(driver, auth_data, employee, beneficiers):
         #driver.find_element(By.NAME, 'v_aceptaingreso').click()
         driver.execute_script('grabarPolizaxTra();')
 
-        alert = driver.switch_to.alert
-        alert.accept()
-
         wait_page_loading(driver)
 
-        #verify_beneficiaries(employee['EMP_DNI'])
+        verify_beneficiaries(employee['EMP_DNI'])#try again
 
     #window_list = driver.window_handles
     #driver.switch_to.window(window_list[1]) 
@@ -196,7 +176,8 @@ def update_renew_insurance(driver, auth_data, employee, beneficiers):
         send_id_by_type(beneficier['BEN_DNI'])
 
         if not beneficier['ADULT']:
-
+            
+            input()
             driver.find_element(By.NAME, 'v_apepatben').send_keys(beneficier['APELLIDO PATERNO'])
             driver.find_element(By.NAME, 'v_apematben').send_keys(beneficier['APELLIDO MATERNO'])
             driver.find_element(By.NAME, 'v_nomben').send_keys(beneficier['NOMBRES'])
@@ -211,7 +192,7 @@ def update_renew_insurance(driver, auth_data, employee, beneficiers):
             else:
                 driver.find_element(By.NAME, 'v_gentraF').click()
 
-        relationship = auth_data['lookup[relationship]'][beneficier['VINCULO FAMILIAR']]
+        relationship = auth_data['lookup[relationship]'][str(beneficier['VINCULO FAMILIAR'])]
         Select(driver.find_element(By.NAME, 'n_codvinfam')).select_by_visible_text(relationship)
 
         time.sleep(2)
@@ -235,6 +216,7 @@ def update_renew_insurance(driver, auth_data, employee, beneficiers):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Seguro Vida Ley BotWeb.')
     parser.add_argument('auth_file', type=str, help='Path to the authentication JSON (RUC, Password, ...)')
+    parser.add_argument('data_file', type=str, help='Path to the Excel file (Employees and beneficiers)')
 
     args = parser.parse_args()
 
@@ -242,7 +224,7 @@ if __name__ == '__main__':
     auth_data = load_json(args.auth_file)
 
     assert(auth_data is not None)
-    employees_data, beneficiers_data = get_exdata('datos.xlsx', 2)
+    employees_data, beneficiers_data = get_exdata(args.data_file, 2)
 
     print(employees_data.info(), beneficiers_data.info())
     print(employees_data.head())
@@ -254,9 +236,3 @@ if __name__ == '__main__':
         print('Number of beneficiers: ', len(filtered_beneficiers))
         update_renew_insurance(driver, auth_data, employee, filtered_beneficiers)
         break
-
-    """
-    
-    for index, employee_credentials in employees_data.iterrows():
-        signup_insurance(driver, employee_credentials)
-        break"""
