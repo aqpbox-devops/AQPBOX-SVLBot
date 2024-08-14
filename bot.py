@@ -53,7 +53,7 @@ def get_webdriver():
     return driver
 
 def verify_age(birth_date):
-    
+
     age = (datetime.now() - birth_date).days // 365
     return age >= 18
 
@@ -71,10 +71,10 @@ def get_exdata(file, split_point):
         half_r = half_r.rename(columns={half_r.columns[0]: half_l.columns[0]})
 
         dni_columns_l = half_l.filter(like='DNI').columns
-        half_l[dni_columns_l] = half_l[dni_columns_l].applymap(lambda x: str(x).zfill(8))
+        half_l[dni_columns_l] = half_l[dni_columns_l].map(lambda x: str(x).zfill(8))
 
         dni_columns_r = half_r.filter(like='DNI').columns
-        half_r[dni_columns_r] = half_r[dni_columns_r].applymap(lambda x: str(x).zfill(8))
+        half_r[dni_columns_r] = half_r[dni_columns_r].map(lambda x: str(x).zfill(8))
 
         half_l = half_l.drop_duplicates()
 
@@ -102,8 +102,13 @@ def login_employer_credentials(driver, auth_data):
 
 def update_renew_insurance(driver, auth_data, employee, beneficiers):
 
-    def verify_beneficiaries(dni):
+    employee_rlog = pd.DataFrame({'DNI': []})
+    beneficier_rlog = pd.DataFrame({'DNI': []})
 
+    def verify_beneficiaries(dni):
+        """
+        This function returns  True if the employee has been registered before.
+        """
         driver.find_element(By.NAME, 'v_codtrabus').send_keys(dni)
         driver.execute_script('buscarTraLisBD();')
 
@@ -177,6 +182,9 @@ def update_renew_insurance(driver, auth_data, employee, beneficiers):
             date_value = auth_data['insurance date']
         else:
             date_value = driver.find_element(By.ID, 'd_fecing').get_attribute('value')
+        if date_value == '':
+            print('Can not find entry date')
+            return
         driver.execute_script("arguments[0].setAttribute('value', arguments[1]);", driver.find_element(By.ID, 'd_fecasetra'), date_value)
         driver.find_element(By.NAME, 'n_monrem').send_keys(auth_data['const salary'])
         driver.execute_script('grabarPolizaxTra();')
@@ -186,9 +194,8 @@ def update_renew_insurance(driver, auth_data, employee, beneficiers):
         verify_beneficiaries(employee['EMP_DNI'])#try again
 
     window_list = driver.window_handles
-    print('Window list: ', len(window_list), driver.current_url)
+    assert(len(window_list) == 2)
     driver.switch_to.window(window_list[1])
-    print('Window list: ', len(window_list), driver.current_url)
 
     for index, beneficier in beneficiers.iterrows():
         wait_page_loading(driver)
