@@ -7,9 +7,13 @@ from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.alert import Alert
 from selenium.webdriver.support.ui import Select, WebDriverWait
 from selenium.common.exceptions import WebDriverException, TimeoutException
+
+from selenium.webdriver.chrome.service import Service as ChromeService
+from selenium.webdriver.chrome.options import Options as ChromeOptions
+from selenium.webdriver.edge.service import Service as EdgeService
+from selenium.webdriver.edge.options import Options as EdgeOptions
 
 def load_json(file):
 
@@ -35,10 +39,14 @@ def wait_page_loading(driver, timeout=10):
 def get_webdriver():
 
     try:
-        driver = webdriver.Chrome()
+        driver_options = ChromeOptions()
+        driver_options.add_argument("--start-maximized")
+        driver = webdriver.Chrome(service=ChromeService(), options=driver_options)
     except WebDriverException:
         try:
-            driver = webdriver.Edge()
+            driver_options = EdgeOptions()
+            driver_options.add_argument("--start-maximized")
+            driver = webdriver.Edge(service=EdgeService(), options=driver_options)
         except WebDriverException:
             return None
     return driver
@@ -102,13 +110,17 @@ def update_renew_insurance(driver, auth_data, employee, beneficiers):
             return True
         return False
     
-    def send_id_by_type(dni_column, ben=False):
+    def send_id_by_type(dni_column, ben=False, enter=True):
         """
         This function sends the document to RENIEC
         """
         (select_id, input_id) = ('v_codtdocide', 'v_codtra') if not ben else ('v_codtdocideben', 'v_codben')
         Select(driver.find_element(By.ID, select_id)).select_by_visible_text('DOCUMENTO NACIONAL DE IDENTIDAD')
-        driver.find_element(By.ID, input_id).send_keys(dni_column, Keys.RETURN)
+        dni_input = driver.find_element(By.ID, input_id)
+        dni_input.send_keys(dni_column)
+        if not enter:
+            return
+        dni_input.send_keys(Keys.RETURN)
 
     driver.execute_script('f_segurovida();')
 
@@ -158,6 +170,7 @@ def update_renew_insurance(driver, auth_data, employee, beneficiers):
             date_value = auth_data['insurance date']
         else:
             date_value = driver.find_element(By.ID, 'd_fecing').get_attribute('value')
+        print('DATEVAL fecing: ', type(date_value), date_value)
         driver.execute_script("arguments[0].setAttribute('value', arguments[1]);", driver.find_element(By.ID, 'd_fecasetra'), date_value)
         driver.find_element(By.NAME, 'n_monrem').send_keys(auth_data['const salary'])
         #driver.find_element(By.NAME, 'v_aceptaingreso').click()
@@ -167,52 +180,63 @@ def update_renew_insurance(driver, auth_data, employee, beneficiers):
 
         verify_beneficiaries(employee['EMP_DNI'])#try again
 
-    #window_list = driver.window_handles
-    #driver.switch_to.window(window_list[1]) 
+    window_list = driver.window_handles
+    print('Window list: ', len(window_list), driver.current_url)
+    driver.switch_to.window(window_list[1])
+    print('Window list: ', len(window_list), driver.current_url)
 
     for index, beneficier in beneficiers.iterrows():
         wait_page_loading(driver)
 
-        send_id_by_type(beneficier['BEN_DNI'])
-
         if not beneficier['ADULT']:
+
+            time.sleep(0.5)
             
-            input()
+            driver.find_element(By.XPATH, "//input[@name='answer' and @value='yes']").click()
+
+            time.sleep(0.5)
+
+            send_id_by_type(beneficier['BEN_DNI'], ben=True, enter=False)
             driver.find_element(By.NAME, 'v_apepatben').send_keys(beneficier['APELLIDO PATERNO'])
             driver.find_element(By.NAME, 'v_apematben').send_keys(beneficier['APELLIDO MATERNO'])
             driver.find_element(By.NAME, 'v_nomben').send_keys(beneficier['NOMBRES'])
-            driver.find_element(By.NAME, 'v_fecnacben').send_keys(beneficier['FECHA DE NACIMIENTO'])
+            date_value = beneficier['FECHA DE NACIMIENTO'].strftime("%d/%m/%Y")
+            print(date_value)
+            #driver.find_element(By.ID, 'd_fecnacben').send_keys(date_value)
+            driver.execute_script("document.getElementById('d_fecnacben').value = arguments[0];", date_value)
+            print("ok1")
+            #driver.execute_script("arguments[0].setAttribute('value', arguments[1]);", driver.find_element(By.ID, 'd_fecnacben'), date_value)
             driver.find_element(By.NAME, 'v_direccion').send_keys(beneficier['DIRECCIÓN'])
-            Select(driver.find_element(By.NAME, 'v_coddepBen')).select_by_visible_text(str(beneficier['DEPARTAMENTO']).capitalize())
-            Select(driver.find_element(By.NAME, 'v_codproBen')).select_by_visible_text(str(beneficier['PROVINCIA']).capitalize())
-            Select(driver.find_element(By.NAME, 'v_coddisBen')).select_by_visible_text(str(beneficier['DISTRITO']).capitalize())
-            
-            if beneficier['SEXO'].capitalize() == 'MASCULINO':
-                driver.find_element(By.NAME, 'v_gentraM').click()
+            print("ok2")
+            dept = beneficier['DEPARTAMENTO'].upper()
+            prov = beneficier['PROVINCIA'].upper()
+            dist = beneficier['DISTRITO'].upper()
+            Select(driver.find_element(By.NAME, 'v_coddepBen')).select_by_visible_text(dept)
+            time.sleep(0.3)
+            Select(driver.find_element(By.NAME, 'v_codproBen')).select_by_visible_text(prov)
+            time.sleep(0.3)
+            Select(driver.find_element(By.NAME, 'v_coddisBen')).select_by_visible_text(dist)
+            if beneficier['SEXO'].upper() == 'MASCULINO':
+                driver.find_element(By.ID, 'v_gentraM').click()
             else:
-                driver.find_element(By.NAME, 'v_gentraF').click()
+                driver.find_element(By.ID, 'v_gentraF').click()
+        
+        else:
+            send_id_by_type(beneficier['BEN_DNI'], ben=True)
 
-        relationship = auth_data['lookup[relationship]'][str(beneficier['VINCULO FAMILIAR'])]
+        relationship = beneficier['VINCULO FAMILIAR'].upper()
         Select(driver.find_element(By.NAME, 'n_codvinfam')).select_by_visible_text(relationship)
-
-        time.sleep(2)
 
         wait_page_loading(driver)
         
         driver.execute_script('grabarBeneficiario();')
 
-        wait_page_loading(driver)
-
         alert = driver.switch_to.alert
         alert.accept()
 
-    input()
-
     driver.execute_script('regresar();')
-    #driver.switch_to.window(window_list[0]) 
+    driver.switch_to.window(window_list[0]) 
 
-    driver.quit()
-    
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Seguro Vida Ley BotWeb.')
     parser.add_argument('auth_file', type=str, help='Path to the authentication JSON (RUC, Password, ...)')
@@ -236,3 +260,5 @@ if __name__ == '__main__':
         print('Number of beneficiers: ', len(filtered_beneficiers))
         update_renew_insurance(driver, auth_data, employee, filtered_beneficiers)
         break
+
+    driver.quit()
