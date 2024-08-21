@@ -1,0 +1,4 @@
+temp/
+bot/__pycache__/
+SHARED-REGS/*
+!SHARED-REGS/place_holder.txt
