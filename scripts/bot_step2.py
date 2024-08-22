@@ -1,20 +1,15 @@
 import pandas as pd
-import json
 import time
-import sys
 import argparse
 from datetime import datetime
 import difflib
 import logging
 
-from enum import Enum, auto
-from __init__ import *
+from constants import *
 
 from selenium.common.exceptions import *
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.support.ui import Select
-from selenium.webdriver.support import expected_conditions as EC
 
 import bot.w3_automaton as w3auto
 
@@ -78,10 +73,10 @@ def from_login2sign_up_employee(driver: w3auto.WebDriverExtended, auth, emps, be
 
     while flag:
         flag = False
-        driver.url(auth['url'])
-        driver.write_in_element("//input[@id='txtRuc']", auth['ruc'])
-        driver.write_in_element("//input[@id='txtUsuario']", auth['usr'])
-        driver.write_in_element("//input[@id='txtContrasena']", auth['psw'])
+        driver.url(auth[AUTH_URL])
+        driver.write_in_element("//input[@id='txtRuc']", auth[AUTH_CREDENTIALS][AUTH_RUC])
+        driver.write_in_element("//input[@id='txtUsuario']", auth[AUTH_CREDENTIALS][AUTH_USER])
+        driver.write_in_element("//input[@id='txtContrasena']", auth[AUTH_CREDENTIALS][AUTH_PASSWORD])
         driver.click_element("//button[text()='Entrar']")
         driver.click_element("//area[@shape='rect' and @coords='250,20,464,68']")
         driver.select_in_element("//select[@name='v_ruc_ase' and @class='form-control']", 'PACIFICO COMPAÑIA DE SEGUROS Y REASEGUROS')
@@ -92,10 +87,12 @@ def from_login2sign_up_employee(driver: w3auto.WebDriverExtended, auth, emps, be
         try:
 
             for index, emp in emps.iterrows():
-                sign_up_employee(driver, auth, emp, bens)
+                selected_bens = bens.loc[bens[CKEY_PK] == emp[CKEY_DOC]]#IMPORTANT CODE LINE!!!!!!!!
+                sign_up_employee(driver, auth, emp, selected_bens)
         
         except TimeSessionUnexpectedExpiration:
             flag = True
+            driver.quit()
 
 def sign_up_employee(driver: w3auto.WebDriverExtended, auth, emp, bens):
 
@@ -106,8 +103,10 @@ def sign_up_employee(driver: w3auto.WebDriverExtended, auth, emp, bens):
         driver.click_element("//input[@name='v_flgreing' and @value='N']")
         driver.click_element("//input[@name='v_flgcontseg' and @value='N']")
 
-        if auth['insurance date'] is not None:
-            date_value = auth['insurance date']
+        insurance_date = auth[AUTH_SVL_CONSTANTS][AUTH_INS_DATE]
+
+        if insurance_date is not None:
+            date_value = insurance_date
         else:
             date_value = driver.attr_from_element("//input[@type='text' and @name='d_fecing']", 'value')
 
@@ -117,15 +116,14 @@ def sign_up_employee(driver: w3auto.WebDriverExtended, auth, emp, bens):
             return
 
         driver.write_in_element("//input[@type='text' and @name='d_fecasetra']", date_value)
-        driver.write_in_element("//input[@type='text' and @name='n_monrem']", auth['const salary'])
+        driver.write_in_element("//input[@type='text' and @name='n_monrem']", auth[AUTH_SVL_CONSTANTS][AUTH_SALARY])
 
         driver.click_element("//a[text()='Grabar']")
 
-        driver.accept_alert()
+        if driver.accept_alert():
+            logging.info(f"<EMP {emp[CKEY_DOC_TYPE]}({emp[CKEY_DOC]}): #bens({len(bens)})>")
 
-        selected_bens = bens.loc[bens[CKEY_PK] == emp[CKEY_DOC]]
-
-        return search_beneficier_by_doc(driver, auth, emp, selected_bens)
+        return search_beneficier_by_doc(driver, auth, emp, bens)
     except ValueError:
         raise TimeSessionUnexpectedExpiration()
 
@@ -141,13 +139,9 @@ def search_beneficier_by_doc(driver: w3auto.WebDriverExtended, auth, emp, bens):
             driver.click_element("//a[img[@title='Ingresar Beneficiario(s)']]")
             driver.pick_window(1)
 
-            logging.info(f"<EMP {emp[CKEY_DOC_TYPE]}({emp[CKEY_DOC]}): #bens({len(bens)})>")
-
-            #input()
-
             for index, ben in bens.iterrows():
-                registered = is_adult_question(driver, auth, emp, ben)
-                logging.info(f"|* <BEN {ben[CKEY_DOC_TYPE]}({ben[CKEY_DOC]}): REGISTERED({registered}), REASON({None})>")
+                registered, reason = is_adult_question(driver, auth, emp, ben)
+                logging.info(f"■ <BEN {ben[CKEY_DOC_TYPE]}({ben[CKEY_DOC]}): REGISTERED({registered}), REASON({reason})>")
 
             return close_beneficier_page(driver, auth, emp, ben)
         return
@@ -169,8 +163,8 @@ def insert_just_doc(driver: w3auto.WebDriverExtended, auth, emp, ben) -> bool:
         driver.send_doc_by_type("//select[@name='v_codtdocideben' and @id='v_codtdocideben']",
                                 "//input[@type='text' and @name='v_codben' and @id='v_codben']",
                                 ben[CKEY_DOC_TYPE], ben[CKEY_DOC], enter=True)
-        if driver.accept_alert():
-            return False
+        if driver.accept_alert():#Data not found in Minsa/RENIEC
+            return False, None
         
         return save_beneficier_data(driver, auth, emp, ben)
     except ValueError:
@@ -185,9 +179,10 @@ def insert_full_form(driver: w3auto.WebDriverExtended, auth, emp, ben) -> bool:
                                 ben[CKEY_DOC_TYPE], ben[CKEY_DOC], enter=False)
         
         #Bad format input or Missed data in RENIEC => Can not do for this beneficier
-        if driver.accept_alert():
-            return False
-
+        logging.info("AQUI SE ESTANCA")
+        #if driver.accept_alert():
+        #    return False, None
+        logging.info("AQUI SE ESTANCA2")
         driver.write_in_element("//input[@type='text' and @name='v_apepatben' and @id='v_apepatbenID']", ben[CKEY_APPA])
         driver.write_in_element("//input[@type='text' and @name='v_apematben' and @id='v_apematbenID']", ben[CKEY_APMA])
         driver.write_in_element("//input[@type='text' and @name='v_nomben' and @id='v_nombenID']", ben[CKEY_NAME])
@@ -216,7 +211,7 @@ def save_beneficier_data(driver: w3auto.WebDriverExtended, auth, emp, ben) -> bo
 
         driver.accept_alert()
 
-        return True
+        return True, None
 
     except ValueError:
         raise TimeSessionUnexpectedExpiration()
@@ -224,7 +219,7 @@ def save_beneficier_data(driver: w3auto.WebDriverExtended, auth, emp, ben) -> bo
 def close_beneficier_page(driver: w3auto.WebDriverExtended, auth, emp, ben):
     
     try:
-        driver.click_element("//a[text()='Regresar']")
+        driver.close_page()
         driver.pick_window(0)
     except ValueError:
         raise TimeSessionUnexpectedExpiration()
@@ -239,14 +234,16 @@ if __name__ == '__main__':
 
     if auth is not None:
         try:
-            driver = w3auto.WebDriverExtended(auth['webdriver']['browser'], 
-                                            auth['webdriver']['headless'])
+            driver = w3auto.WebDriverExtended(auth[AUTH_WEBDRIVER][AUTH_BROWSER], 
+                                            auth[AUTH_WEBDRIVER][AUTH_HEADLESS])
         except ValueError as e:
             w3auto.conserr(e)
-            exit(0)
 
-        emps = pd.read_csv(SHAREGS_PARSED_EMPLOYEES)
-        bens = pd.read_csv(SHAREGS_PARSED_BENEFICIERS)
+        try:
+            emps = pd.read_csv(SHAREGS_PARSED_EMPLOYEES)
+            bens = pd.read_csv(SHAREGS_PARSED_BENEFICIERS)
+        except FileNotFoundError as e:
+            w3auto.conserr(e)
 
         w3auto.setup_logging(SHAREGS_INFO_LOGS, SHAREGS_WARNING_LOGS)
 

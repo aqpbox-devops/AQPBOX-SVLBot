@@ -1,4 +1,12 @@
+.vscode/
 temp/
-bot/__pycache__/
+test/*
+test/out/*
+!test/auth-template.json
+!test/out
+!test/out/placeholder.txt
+!test/input.xlsx
+scripts/__pycache__/
+scripts/bot/__pycache__/
 SHARED-REGS/*
-!SHARED-REGS/place_holder.txt
+!SHARED-REGS/placeholder.txt

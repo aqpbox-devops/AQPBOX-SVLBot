@@ -1,7 +1,30 @@
+#Shared registers, files
 SHAREGS_PARSED_EMPLOYEES = 'SHARED-REGS/employees.csv'
 SHAREGS_PARSED_BENEFICIERS = 'SHARED-REGS/beneficiers.csv'
 SHAREGS_INFO_LOGS = 'SHARED-REGS/info-logs.log'
 SHAREGS_WARNING_LOGS = 'SHARED-REGS/warn-logs.log'
+
+#JSON Authentication file keys
+AUTH_URL = 'url'
+AUTH_WEBDRIVER = 'webdriver'
+AUTH_BROWSER = 'browser'
+AUTH_HEADLESS = 'headless'
+#Credentials
+AUTH_CREDENTIALS = 'login'
+AUTH_USER = 'user'
+AUTH_PASSWORD = 'password'
+AUTH_RUC = 'ruc'
+#Inside the page
+AUTH_SVL_CONSTANTS = 'SVL'
+AUTH_INS_DATE = 'insurance date'
+AUTH_SALARY = 'insurance salary'
+#Notifications
+AUTH_NOTIFICATIONS = 'notifications'
+AUTH_SENDER = 'sender login'
+AUTH_EMAIL = 'email'
+AUTH_SMTP = 'server smtp'
+AUTH_SUBSCRIBER_LIST = 'subscribers'
+
 #Table columns names definitions
 CKEY_REGISTERED = 'REGISTERED'
 CKEY_ISADULT = 'ADULT'

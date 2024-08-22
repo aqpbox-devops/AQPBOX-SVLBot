@@ -3,6 +3,7 @@ import sys
 import os
 import time
 import logging
+import inspect
 
 from selenium import webdriver
 from selenium.webdriver.remote.webelement import WebElement
@@ -60,7 +61,8 @@ def setup_logging(debug_info_log, warning_error_log):
     warning_error_handler.addFilter(lambda record: logging.WARNING <= record.levelno <= logging.CRITICAL)
     
 def conserr(e):
-    logging.error(f"ERROR: [{e}]", exc_info=True)
+    logging.error(f"MSG: [{e}], WHERE:[{__name__}.{inspect.stack()[1].function}]", exc_info=True)
+    exit(0)
 
 def load_json(file):
     try:
@@ -186,6 +188,9 @@ class WebDriverExtended:
             )
         except TimeoutException as e:
             conserr(e)
+
+    def close_page(self):
+        self.driver.close()
 
     def pick_window(self, index):
         time.sleep(0.2)
