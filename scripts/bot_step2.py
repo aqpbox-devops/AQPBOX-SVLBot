@@ -1,3 +1,5 @@
+employee_out = [['Documento', 'Nro. de beneficiados', '¿Registrado?', 'Motivo']]
+beneficier_out = [['Trabajador', 'Documento', '¿Registrado?', 'Motivo']]
 import pandas as pd
 import time
 import argparse
@@ -17,6 +19,21 @@ class TimeSessionUnexpectedExpiration(Exception):
     def __init__(self, message="The current session has expired. Return to login again."):
         self.message = message
         super().__init__(self.message)
+
+def yesno(val: bool):
+    ans = 'Sí' if val else 'No'
+    return ans
+
+def employee_log(emp, bens, registered, reason):
+    fdoc_tn = f"{emp[CKEY_DOC_TYPE]} - {emp[CKEY_DOC]}"
+    len_bens = len(bens)
+    logging.info(f"EMP ({fdoc_tn}): #BENEFICIERS({len_bens}), REGISTERED({registered}), REASON({reason})")
+    employee_out.append([fdoc_tn, len_bens, yesno(registered), reason])
+
+def beneficier_log(emp, ben, registered, reason):
+    fdoc_tn = f"{ben[CKEY_DOC_TYPE]} - {ben[CKEY_DOC]}"
+    logging.info(f"** BEN ({fdoc_tn}): REGISTERED({registered}), REASON({reason})")
+    beneficier_out.append([f"{emp[CKEY_DOC_TYPE]} - {emp[CKEY_DOC]}", fdoc_tn, yesno(registered), reason])
 
 @w3auto.add_method_to_class(w3auto.WebDriverExtended)
 def click_newest_insurance(self, xpath):
@@ -97,17 +114,21 @@ def from_login2sign_up_employee(driver: w3auto.WebDriverExtended, auth, emps, be
 def sign_up_employee(driver: w3auto.WebDriverExtended, auth, emp, bens):
 
     try:
+
         driver.send_doc_by_type("//select[@class='form-control' and @name='v_codtdocide' and @id='v_codtdocide']", 
                                 "//input[@type='text' and @name='v_codtra' and @id='v_codtra']", 
                                 emp[CKEY_DOC_TYPE], emp[CKEY_DOC], enter=True)
+        
+        if driver.accept_alert():
+            employee_log(emp, bens, False, OUT_CHK_REASONS['NFR'])
+            return
+
         driver.click_element("//input[@name='v_flgreing' and @value='N']")
         driver.click_element("//input[@name='v_flgcontseg' and @value='N']")
 
-        insurance_date = auth[AUTH_SVL_CONSTANTS][AUTH_INS_DATE]
+        date_value = auth[AUTH_SVL_CONSTANTS][AUTH_INS_DATE]
 
-        if insurance_date is not None:
-            date_value = insurance_date
-        else:
+        if date_value is None:
             date_value = driver.attr_from_element("//input[@type='text' and @name='d_fecing']", 'value')
 
         if len(date_value) == 0:
@@ -120,8 +141,11 @@ def sign_up_employee(driver: w3auto.WebDriverExtended, auth, emp, bens):
 
         driver.click_element("//a[text()='Grabar']")
 
+        reason = OUT_CHK_REASONS['OK']
         if driver.accept_alert():
-            logging.info(f"<EMP {emp[CKEY_DOC_TYPE]}({emp[CKEY_DOC]}): #bens({len(bens)})>")
+            reason = OUT_CHK_REASONS['EAR']
+        
+        employee_log(emp, bens, True, reason)
 
         return search_beneficier_by_doc(driver, auth, emp, bens)
     except ValueError:
@@ -141,10 +165,10 @@ def search_beneficier_by_doc(driver: w3auto.WebDriverExtended, auth, emp, bens):
 
             for index, ben in bens.iterrows():
                 registered, reason = is_adult_question(driver, auth, emp, ben)
-                logging.info(f"■ <BEN {ben[CKEY_DOC_TYPE]}({ben[CKEY_DOC]}): REGISTERED({registered}), REASON({reason})>")
+                beneficier_log(emp, ben, registered, reason)
 
             return close_beneficier_page(driver, auth, emp, ben)
-        return
+        
     except ValueError:
         raise TimeSessionUnexpectedExpiration()
 
@@ -164,7 +188,7 @@ def insert_just_doc(driver: w3auto.WebDriverExtended, auth, emp, ben) -> bool:
                                 "//input[@type='text' and @name='v_codben' and @id='v_codben']",
                                 ben[CKEY_DOC_TYPE], ben[CKEY_DOC], enter=True)
         if driver.accept_alert():#Data not found in Minsa/RENIEC
-            return False, None
+            return False, OUT_CHK_REASONS['NFR']
         
         return save_beneficier_data(driver, auth, emp, ben)
     except ValueError:
@@ -179,10 +203,9 @@ def insert_full_form(driver: w3auto.WebDriverExtended, auth, emp, ben) -> bool:
                                 ben[CKEY_DOC_TYPE], ben[CKEY_DOC], enter=False)
         
         #Bad format input or Missed data in RENIEC => Can not do for this beneficier
-        logging.info("AQUI SE ESTANCA")
-        #if driver.accept_alert():
-        #    return False, None
-        logging.info("AQUI SE ESTANCA2")
+        if driver.accept_alert():
+            return False, OUT_CHK_REASONS['BFI']
+        
         driver.write_in_element("//input[@type='text' and @name='v_apepatben' and @id='v_apepatbenID']", ben[CKEY_APPA])
         driver.write_in_element("//input[@type='text' and @name='v_apematben' and @id='v_apematbenID']", ben[CKEY_APMA])
         driver.write_in_element("//input[@type='text' and @name='v_nomben' and @id='v_nombenID']", ben[CKEY_NAME])
@@ -211,7 +234,7 @@ def save_beneficier_data(driver: w3auto.WebDriverExtended, auth, emp, ben) -> bo
 
         driver.accept_alert()
 
-        return True, None
+        return True, OUT_CHK_REASONS['OK']
 
     except ValueError:
         raise TimeSessionUnexpectedExpiration()
@@ -219,7 +242,7 @@ def save_beneficier_data(driver: w3auto.WebDriverExtended, auth, emp, ben) -> bo
 def close_beneficier_page(driver: w3auto.WebDriverExtended, auth, emp, ben):
     
     try:
-        driver.close_page()
+        driver.click_element("//a[text()='Regresar']")
         driver.pick_window(0)
     except ValueError:
         raise TimeSessionUnexpectedExpiration()
@@ -248,3 +271,11 @@ if __name__ == '__main__':
         w3auto.setup_logging(SHAREGS_INFO_LOGS, SHAREGS_WARNING_LOGS)
 
         from_login2sign_up_employee(driver, auth, emps, bens)
+
+        driver.quit()
+
+        edf = pd.DataFrame(employee_out[1:], columns=employee_out[0]) 
+        bdf = pd.DataFrame(beneficier_out[1:], columns=beneficier_out[0])
+        with pd.ExcelWriter(SHAREGS_OUT_FILE) as writer:
+            edf.to_excel(writer, sheet_name='Trabajadores')
+            bdf.to_excel(writer, sheet_name='Beneficiarios')

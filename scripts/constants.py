@@ -3,6 +3,7 @@ SHAREGS_PARSED_EMPLOYEES = 'SHARED-REGS/employees.csv'
 SHAREGS_PARSED_BENEFICIERS = 'SHARED-REGS/beneficiers.csv'
 SHAREGS_INFO_LOGS = 'SHARED-REGS/info-logs.log'
 SHAREGS_WARNING_LOGS = 'SHARED-REGS/warn-logs.log'
+SHAREGS_OUT_FILE = 'SHARED-REGS/output.excel'
 
 #JSON Authentication file keys
 AUTH_URL = 'url'
@@ -26,7 +27,6 @@ AUTH_SMTP = 'server smtp'
 AUTH_SUBSCRIBER_LIST = 'subscribers'
 
 #Table columns names definitions
-CKEY_REGISTERED = 'REGISTERED'
 CKEY_ISADULT = 'ADULT'
 
 LGENDER_VARS = ['M', 'MASCULINO']
@@ -74,4 +74,12 @@ RELATIONSHIPS = {
     "h": "TATARABUELO (A)",
     "i": "SOBRINO (A)",
     "j": "TÍO (A)"
+}
+
+#Output Registers vars
+OUT_CHK_REASONS = {
+    'OK': 'Se registró/actualizó correctamente.',
+    'EAR': 'El trabajador ya fue registrado anteriormente',
+    'NFR': 'No se encontró los datos de la persona solicitada en RENIEC',
+    'BFI': 'Formato incorrecto de entrada del documento.'
 }

@@ -60,9 +60,6 @@ def get_exdata(file):
         emps = emps.drop_duplicates()
         bens = bens.drop_duplicates()
 
-        emps[CKEY_REGISTERED] = False
-        bens[CKEY_REGISTERED] = False
-
         logging.info(f"{emps.shape}{bens.shape}")
 
     except FileNotFoundError as e:

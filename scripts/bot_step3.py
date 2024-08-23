@@ -39,18 +39,14 @@ class EmailSender:
             self.payload["Cc"] = ', '.join(subscribers[1:])
 
         with smtplib.SMTP(self.smtp_server, self.smtp_port) as server:
-            #server.ehlo()
-            print("BEFORE LOGGING")
             server.starttls()
-            #server.ehlo()
             server.login(self.e_from, self.password)
-            print("AFTER LOGGING")
             server.sendmail(self.e_from, subscribers, self.payload.as_string())
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='Seguro Vida Ley BotWeb.')
     parser.add_argument('auth_file', type=str, help='Path to the authentication JSON (RUC, Password, ...)')
-    parser.add_argument('report_file', type=str, help='Path to the final report file')
+    parser.add_argument('report_file', type=str, help='Name for the final report file')
 
     args = parser.parse_args()
 

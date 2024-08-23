@@ -17,7 +17,7 @@
         "sender login": {
             "email": "xxxxxx@dom.xxx",
             "password": "xxxxxxx",
-            "server smtp": "xxxxxx"
+            "server smtp": "webmail.cajaarequipa.pe"
         },
         "subscribers": ["correo1@cajaarequipa.pe",
                         "correo2@cajaarequipa.pe",

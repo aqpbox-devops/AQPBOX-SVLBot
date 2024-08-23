@@ -30,29 +30,23 @@ def add_method_to_class(cls):
 
 def setup_logging(debug_info_log, warning_error_log):
     sys.stderr = open(os.devnull, 'w')
-    # Crea un logger
     logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG)  # Configura el nivel de logging
+    logger.setLevel(logging.DEBUG)
 
-    # Crea un handler para la consola (DEBUG)
     console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.DEBUG)  # Captura mensajes de nivel DEBUG y superiores
+    console_handler.setLevel(logging.DEBUG)
 
-    # Crea un handler para el archivo de INFO
     info_handler = logging.FileHandler(debug_info_log)
-    info_handler.setLevel(logging.INFO)  # Captura mensajes de nivel INFO y superiores
+    info_handler.setLevel(logging.INFO)
 
-    # Crea un handler para el archivo de WARNING y errores
     warning_error_handler = logging.FileHandler(warning_error_log)
-    warning_error_handler.setLevel(logging.WARNING)  # Captura mensajes de nivel WARNING y superiores
+    warning_error_handler.setLevel(logging.WARNING)
 
-    # Crea un formatter y lo agrega a los handlers
     formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
     console_handler.setFormatter(formatter)
     info_handler.setFormatter(formatter)
     warning_error_handler.setFormatter(formatter)
 
-    # Agrega los handlers al logger
     logger.addHandler(console_handler)
     logger.addHandler(info_handler)
     logger.addHandler(warning_error_handler)
@@ -60,9 +54,10 @@ def setup_logging(debug_info_log, warning_error_log):
     info_handler.addFilter(lambda record: record.levelno < logging.WARNING)
     warning_error_handler.addFilter(lambda record: logging.WARNING <= record.levelno <= logging.CRITICAL)
     
-def conserr(e):
+def conserr(e, pass_=False):
     logging.error(f"MSG: [{e}], WHERE:[{__name__}.{inspect.stack()[1].function}]", exc_info=True)
-    exit(0)
+    if not pass_:
+        exit(0)
 
 def load_json(file):
     try:
@@ -118,7 +113,7 @@ def create_webdriver(browser_name, headless=False):
         return webdriver.Safari(service=service)
     
 class WebDriverExtended:
-    def __init__(self, browser_name, headless, timeout_wait=10) -> None:
+    def __init__(self, browser_name, headless, timeout_wait=20) -> None:
         try:
             self.driver = create_webdriver(browser_name, headless)
             self.wait = WebDriverWait(self.driver, timeout_wait)
@@ -146,7 +141,7 @@ class WebDriverExtended:
             return True
 
         except NoAlertPresentException as e:
-            conserr(e)
+            conserr(e, True)
             return False
 
     def press_key(self, element: WebElement, mykey: Keys):
@@ -193,7 +188,7 @@ class WebDriverExtended:
         self.driver.close()
 
     def pick_window(self, index):
-        time.sleep(0.2)
+        time.sleep(0.15)
         av_windows = self.driver.window_handles
         try:
             self.driver.switch_to.window(av_windows[index])
