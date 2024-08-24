@@ -52,7 +52,6 @@ def setup_logging(debug_info_log, warning_error_log):
     logger.addHandler(warning_error_handler)
 
     info_handler.addFilter(lambda record: record.levelno < logging.WARNING)
-    warning_error_handler.addFilter(lambda record: logging.WARNING <= record.levelno <= logging.CRITICAL)
     
 def conserr(e, pass_=False):
     logging.error(f"MSG: [{e}], WHERE:[{__name__}.{inspect.stack()[1].function}]", exc_info=True)
@@ -120,6 +119,13 @@ class WebDriverExtended:
         except ValueError as e:
             conserr(e)
 
+    def close_all(self):
+        remaining_windows = len(self.driver.window_handles)
+        while remaining_windows > 0:
+            self.driver.close()
+            remaining_windows -= 1
+            self.wait.until(EC.number_of_windows_to_be(remaining_windows))
+
     def quit(self):
         self.driver.quit()
 
@@ -131,23 +137,25 @@ class WebDriverExtended:
         self.driver.refresh()
         self.wait_page()
 
-    def accept_alert(self):
+    def accept_alert(self, timeout=0.2):
         try:
-            time.sleep(0.15)
+            WebDriverWait(self.driver, timeout).until(EC.alert_is_present())
             alert = self.driver.switch_to.alert
             logging.warning(f"[!]ALERT: [\"{alert.text}\"]")
             alert.accept()
 
             return True
+        
+        except TimeoutException:
+            return False
 
-        except NoAlertPresentException as e:
-            conserr(e, True)
+        except NoAlertPresentException:
             return False
 
     def press_key(self, element: WebElement, mykey: Keys):
-        time.sleep(0.15)
+        time.sleep(0.2)
         element.send_keys(mykey)
-        time.sleep(0.15)
+        time.sleep(0.1)
 
     def attr_from_element(self, xpath: str, attr:str):
         element = self.wait.until(EC.visibility_of_element_located((By.XPATH, xpath)))
@@ -187,13 +195,19 @@ class WebDriverExtended:
     def close_page(self):
         self.driver.close()
 
-    def pick_window(self, index):
-        time.sleep(0.15)
-        av_windows = self.driver.window_handles
+    def pick_window(self, index, windows):
         try:
+            if index >= windows:
+                raise NoSuchWindowException()
+            
+            self.wait.until(EC.number_of_windows_to_be(windows))
+
+            av_windows = self.driver.window_handles
             self.driver.switch_to.window(av_windows[index])
             self.wait_page()
 
+        except TimeoutException as e:
+            conserr(e)
         except IndexError as e:
             conserr(e)
         except NoSuchWindowException as e:

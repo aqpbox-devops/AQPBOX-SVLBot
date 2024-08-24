@@ -98,15 +98,16 @@ def closest_match_from_element(self, xpath: str, to_match: str, bias=0.8):
 def employee_is_already_registered(driver: w3auto.WebDriverExtended, doc_n, doc_t):
     driver.write_in_element("//input[@type='text' and @name='v_codtrabus']", format_document(doc_n, doc_t))
     driver.click_element("//a[@href='javascript:buscarTraLisBD();']")
+
     body = driver.pick_table_as_element("//table[@border='2' and @id='lstPolizaTrabajador']", 'tbody')
     unique_row = list(body.find_elements(By.TAG_NAME, 'tr'))[0]
     employee_terminated = unique_row.get_attribute('class') != 'empty'
     cells = list(unique_row.find_elements(By.TAG_NAME, 'td'))
+
     if len(cells) == 11:
         employee_terminated = cells[5].text != 'Baja'
     else:
         employee_terminated = False
-    logging.info(f"BOOL[{employee_terminated}]")
     return employee_terminated
 
 #EMPLOYEES AND BENEFICIERS REGISTRATION
@@ -145,7 +146,7 @@ def from_login2update_revenue_insurance(driver: w3auto.WebDriverExtended, auth, 
             driver.click_element("//a[text()='CERRAR SESIÓN']")
         except TimeSessionUnexpectedExpiration:
             flag = True
-            driver.quit()
+            driver.close_all()
 
 def sign_up_employee(driver: w3auto.WebDriverExtended, auth, emp, bens):
 
@@ -154,7 +155,6 @@ def sign_up_employee(driver: w3auto.WebDriverExtended, auth, emp, bens):
         driver.send_doc_by_type("//select[@class='form-control' and @name='v_codtdocide' and @id='v_codtdocide']", 
                                 "//input[@type='text' and @name='v_codtra' and @id='v_codtra']", 
                                 emp[CKEY_DOC_TYPE], emp[CKEY_DOC], enter=True)
-        
         if driver.accept_alert():
             emp_registered_log(emp, bens, False, OUT_CHK_REASONS['NFR'])
             return
@@ -163,10 +163,8 @@ def sign_up_employee(driver: w3auto.WebDriverExtended, auth, emp, bens):
         driver.click_element("//input[@name='v_flgcontseg' and @value='N']")
 
         date_value = auth[AUTH_SVL_CONSTANTS][AUTH_INS_DATE]
-
         if date_value is None:
             date_value = driver.attr_from_element("//input[@type='text' and @name='d_fecing']", 'value')
-
         if len(date_value) == 0:
             logging.warning('Can not find entry insurance date')
             driver.reload_page()
@@ -185,7 +183,7 @@ def sign_up_employee(driver: w3auto.WebDriverExtended, auth, emp, bens):
         emp_registered_log(emp, bens, True, reason)
 
         return search_beneficier_by_doc(driver, auth, emp, bens)
-    except ValueError:
+    except TimeoutException:
         raise TimeSessionUnexpectedExpiration()
 
 def search_beneficier_by_doc(driver: w3auto.WebDriverExtended, auth, emp, bens):
@@ -193,7 +191,7 @@ def search_beneficier_by_doc(driver: w3auto.WebDriverExtended, auth, emp, bens):
     try:
         if employee_is_already_registered(driver,  emp[CKEY_DOC], emp[CKEY_DOC_TYPE]):
             driver.click_element("//a[img[@title='Ingresar Beneficiario(s)']]")
-            driver.pick_window(1)
+            driver.pick_window(1, 2)
 
             for index, ben in bens.iterrows():
                 registered, reason = is_adult_question(driver, auth, emp, ben)
@@ -201,7 +199,7 @@ def search_beneficier_by_doc(driver: w3auto.WebDriverExtended, auth, emp, bens):
 
             return close_beneficier_page(driver, auth, emp, ben)
         
-    except ValueError:
+    except TimeoutException:
         raise TimeSessionUnexpectedExpiration()
 
 def is_adult_question(driver: w3auto.WebDriverExtended, auth, emp, ben) -> bool:
@@ -210,7 +208,7 @@ def is_adult_question(driver: w3auto.WebDriverExtended, auth, emp, ben) -> bool:
             return insert_just_doc(driver, auth, emp, ben)
         else:
             return insert_full_form(driver, auth, emp, ben)
-    except ValueError:
+    except TimeoutException:
         raise TimeSessionUnexpectedExpiration()
     
 def insert_just_doc(driver: w3auto.WebDriverExtended, auth, emp, ben) -> bool:
@@ -223,7 +221,7 @@ def insert_just_doc(driver: w3auto.WebDriverExtended, auth, emp, ben) -> bool:
             return False, OUT_CHK_REASONS['NFR']
         
         return save_beneficier_data(driver, auth, emp, ben)
-    except ValueError:
+    except TimeoutException:
         raise TimeSessionUnexpectedExpiration()
 
 def insert_full_form(driver: w3auto.WebDriverExtended, auth, emp, ben) -> bool:
@@ -253,7 +251,7 @@ def insert_full_form(driver: w3auto.WebDriverExtended, auth, emp, ben) -> bool:
             driver.click_element("//input[@type='radio' and @name='v_genben' and @value='F']")
 
         return save_beneficier_data(driver, auth, emp, ben)
-    except ValueError:
+    except TimeoutException:
         raise TimeSessionUnexpectedExpiration()
 
 def save_beneficier_data(driver: w3auto.WebDriverExtended, auth, emp, ben) -> bool:
@@ -267,15 +265,15 @@ def save_beneficier_data(driver: w3auto.WebDriverExtended, auth, emp, ben) -> bo
 
         return True, OUT_CHK_REASONS['OK']
 
-    except ValueError:
+    except TimeoutException:
         raise TimeSessionUnexpectedExpiration()
 
 def close_beneficier_page(driver: w3auto.WebDriverExtended, auth, emp, ben):
     
     try:
         driver.click_element("//a[text()='Regresar']")
-        driver.pick_window(0)
-    except ValueError:
+        driver.pick_window(0, 1)
+    except TimeoutException:
         raise TimeSessionUnexpectedExpiration()
 
 #EMPLOYEES TERMINATION
@@ -284,7 +282,7 @@ def terminate_employee(driver: w3auto.WebDriverExtended, auth, temp):
     try:
         if employee_is_already_registered(driver,  temp[CKEY_DOC], temp[CKEY_DOC_TYPE]):
             driver.click_element("//a[img[@title='Dar de Baja al Trabajador Asegurado']]")
-            driver.pick_window(1)
+            driver.pick_window(1, 2)
 
             driver.closest_match_from_element("//select[@name='tipomotivo' and @class='form-control']", temp[CKEY_REASON])
             driver.write_in_element("//input[@type='text' and @name='d_fecesttra' and @id='d_fecesttra']", temp[CKEY_TDATE]) 
@@ -294,14 +292,12 @@ def terminate_employee(driver: w3auto.WebDriverExtended, auth, temp):
             driver.accept_alert()
             terminated_log(temp, True, OUT_CHK_REASONS['OK'])
 
-            time.sleep(0.15)
-
-            driver.pick_window(0)
+            driver.pick_window(0, 1)
 
             return
         
         terminated_log(temp, False, OUT_CHK_REASONS['EAT'])
-    except ValueError:
+    except TimeoutException:
         raise TimeSessionUnexpectedExpiration()
     
 if __name__ == '__main__':
@@ -330,20 +326,22 @@ if __name__ == '__main__':
 
         logging.info('/*****REGISTER EMPLOYES AND BENEFICIERS*****/')
         try:
-            from_login2update_revenue_insurance(driver, auth, emps[:1], bens)#TODO: NO OLVIDES CORREGIR EL EMPS[:1]
-            driver.quit()
+            from_login2update_revenue_insurance(driver, auth, emps, bens)
         except KeyboardInterrupt:
-            driver.quit()
+            driver.close_all()
             logging.info('Keyboard interrumption detected.')
-        
-        time.sleep(3)#TODO: CORREGIR USO DE LOS 2 PROCESOS EN UNA SOLA EJECUCION, ERROR DE MAL CARGA DE PAGINA
 
-        logging.info('/*****TERMINATE EMPLOYES*****/')
+        logging.info('/*************TERMINATE EMPLOYES************/')
         try:
             from_login2update_revenue_insurance(driver, auth, temps, register_mode=False)
         except KeyboardInterrupt:
-            driver.quit()
+            driver.close_all()
             logging.info('Keyboard interrumption detected.')
+
+        logging.info('/*************WEBDRIVER SHUTDOWN************/')
+        driver.quit()
+
+        logging.info('/*************SAVING REPORT FILE************/')
 
         edf = pd.DataFrame(emp_registered_out[1:], columns=emp_registered_out[0]) 
         bdf = pd.DataFrame(ben_registered_out[1:], columns=ben_registered_out[0])
@@ -352,7 +350,9 @@ if __name__ == '__main__':
         conf_file_out = auth[AUTH_NOTIFICATIONS][AUTH_FILEIO][AUTH_OUTPUT]
         
         if conf_file_out[AUTH_PARAM_USED]:
-            with pd.ExcelWriter(auth[AUTH_FILE_PATH]) as writer:
-                edf.to_excel(writer, sheet_name='Titulares asegurados')
-                bdf.to_excel(writer, sheet_name='Beneficiarios asegurados')
-                tdf.to_excel(writer, sheet_name='Titulares cesados')
+            with pd.ExcelWriter(conf_file_out[AUTH_FILE_PATH]) as writer:
+                edf.to_excel(writer, sheet_name='Titulares asegurados', index=False)
+                bdf.to_excel(writer, sheet_name='Beneficiarios asegurados', index=False)
+                tdf.to_excel(writer, sheet_name='Titulares cesados', index=False)
+
+        logging.info('/*******GOOD BYE!, SEE U NEXT TIME :D*******/')
