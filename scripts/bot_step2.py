@@ -4,6 +4,7 @@ emp_terminated_out = [['Documento', 'Cesado', 'Motivo']]
 
 import pandas as pd
 import time
+import os
 import argparse
 from datetime import datetime
 import difflib
@@ -29,6 +30,14 @@ def yesno(val: bool):
 
 def format_document(doc_n, doc_t):
     return str(doc_n).zfill(ID_DOC_TYPES[doc_t]['len'])
+
+def fdevinfo(msg: str, max_length: int = 50, padding: str = '*') -> str:
+    
+    if len(msg) >= max_length:
+        return msg
+    padding_length = max_length - len(msg)
+    padding_side = padding_length // 2
+    logging.info(f"/{padding * padding_side}[{msg}]{padding * padding_side}/")
 
 def emp_registered_log(emp, bens, registered, reason):
     fdoc_tn = f"{emp[CKEY_DOC_TYPE]} - {format_document(emp[CKEY_DOC], emp[CKEY_DOC_TYPE])}"
@@ -136,11 +145,13 @@ def from_login2update_revenue_insurance(driver: w3auto.WebDriverExtended, auth, 
             if register_mode:
                 while all_emps:
                     emp = all_emps.popleft()
+                    driver.wait_page()
                     selected_bens = bens.loc[bens[CKEY_PK] == emp[CKEY_DOC]]#IMPORTANT CODE LINE!!!!!!!!
                     sign_up_employee(driver, auth, emp, selected_bens)
             else:
                 while all_emps:
                     emp = all_emps.popleft()
+                    driver.wait_page()
                     terminate_employee(driver, auth, emp)
                     
             driver.click_element("//a[text()='CERRAR SESIÓN']")
@@ -151,7 +162,6 @@ def from_login2update_revenue_insurance(driver: w3auto.WebDriverExtended, auth, 
 def sign_up_employee(driver: w3auto.WebDriverExtended, auth, emp, bens):
 
     try:
-
         driver.send_doc_by_type("//select[@class='form-control' and @name='v_codtdocide' and @id='v_codtdocide']", 
                                 "//input[@type='text' and @name='v_codtra' and @id='v_codtra']", 
                                 emp[CKEY_DOC_TYPE], emp[CKEY_DOC], enter=True)
@@ -183,7 +193,7 @@ def sign_up_employee(driver: w3auto.WebDriverExtended, auth, emp, bens):
         emp_registered_log(emp, bens, True, reason)
 
         return search_beneficier_by_doc(driver, auth, emp, bens)
-    except TimeoutException:
+    except ConnectionRefusedError:
         raise TimeSessionUnexpectedExpiration()
 
 def search_beneficier_by_doc(driver: w3auto.WebDriverExtended, auth, emp, bens):
@@ -199,7 +209,7 @@ def search_beneficier_by_doc(driver: w3auto.WebDriverExtended, auth, emp, bens):
 
             return close_beneficier_page(driver, auth, emp, ben)
         
-    except TimeoutException:
+    except ConnectionRefusedError:
         raise TimeSessionUnexpectedExpiration()
 
 def is_adult_question(driver: w3auto.WebDriverExtended, auth, emp, ben) -> bool:
@@ -208,7 +218,7 @@ def is_adult_question(driver: w3auto.WebDriverExtended, auth, emp, ben) -> bool:
             return insert_just_doc(driver, auth, emp, ben)
         else:
             return insert_full_form(driver, auth, emp, ben)
-    except TimeoutException:
+    except ConnectionRefusedError:
         raise TimeSessionUnexpectedExpiration()
     
 def insert_just_doc(driver: w3auto.WebDriverExtended, auth, emp, ben) -> bool:
@@ -221,7 +231,7 @@ def insert_just_doc(driver: w3auto.WebDriverExtended, auth, emp, ben) -> bool:
             return False, OUT_CHK_REASONS['NFR']
         
         return save_beneficier_data(driver, auth, emp, ben)
-    except TimeoutException:
+    except ConnectionRefusedError:
         raise TimeSessionUnexpectedExpiration()
 
 def insert_full_form(driver: w3auto.WebDriverExtended, auth, emp, ben) -> bool:
@@ -230,10 +240,10 @@ def insert_full_form(driver: w3auto.WebDriverExtended, auth, emp, ben) -> bool:
         driver.send_doc_by_type("//select[@name='v_codtdocideben' and @id='v_codtdocideben']", 
                                 "//input[@type='text' and @name='v_codben' and @name='v_codben']",
                                 ben[CKEY_DOC_TYPE], ben[CKEY_DOC], enter=False)
-        
         #Bad format input or Missed data in RENIEC => Can not do for this beneficier
-        if driver.accept_alert():
-            return False, OUT_CHK_REASONS['BFI']
+        #input()
+        #if driver.accept_alert():
+        #    return False, OUT_CHK_REASONS['BFI']
         
         driver.write_in_element("//input[@type='text' and @name='v_apepatben' and @id='v_apepatbenID']", ben[CKEY_APPA])
         driver.write_in_element("//input[@type='text' and @name='v_apematben' and @id='v_apematbenID']", ben[CKEY_APMA])
@@ -251,7 +261,7 @@ def insert_full_form(driver: w3auto.WebDriverExtended, auth, emp, ben) -> bool:
             driver.click_element("//input[@type='radio' and @name='v_genben' and @value='F']")
 
         return save_beneficier_data(driver, auth, emp, ben)
-    except TimeoutException:
+    except ConnectionRefusedError:
         raise TimeSessionUnexpectedExpiration()
 
 def save_beneficier_data(driver: w3auto.WebDriverExtended, auth, emp, ben) -> bool:
@@ -265,7 +275,7 @@ def save_beneficier_data(driver: w3auto.WebDriverExtended, auth, emp, ben) -> bo
 
         return True, OUT_CHK_REASONS['OK']
 
-    except TimeoutException:
+    except ConnectionRefusedError:
         raise TimeSessionUnexpectedExpiration()
 
 def close_beneficier_page(driver: w3auto.WebDriverExtended, auth, emp, ben):
@@ -273,7 +283,7 @@ def close_beneficier_page(driver: w3auto.WebDriverExtended, auth, emp, ben):
     try:
         driver.click_element("//a[text()='Regresar']")
         driver.pick_window(0, 1)
-    except TimeoutException:
+    except ConnectionRefusedError:
         raise TimeSessionUnexpectedExpiration()
 
 #EMPLOYEES TERMINATION
@@ -297,7 +307,7 @@ def terminate_employee(driver: w3auto.WebDriverExtended, auth, temp):
             return
         
         terminated_log(temp, False, OUT_CHK_REASONS['EAT'])
-    except TimeoutException:
+    except ConnectionRefusedError:
         raise TimeSessionUnexpectedExpiration()
     
 if __name__ == '__main__':
@@ -309,12 +319,13 @@ if __name__ == '__main__':
     auth = w3auto.load_json(args.auth_file)
 
     if auth is not None:
-        try:
-            driver = w3auto.WebDriverExtended(auth[AUTH_WEBDRIVER][AUTH_BROWSER], 
-                                            auth[AUTH_WEBDRIVER][AUTH_HEADLESS])
-        except ValueError as e:
-            w3auto.conserr(e)
+        w3auto.setup_logging(SHAREGS_INFO_LOGS, SHAREGS_WARNING_LOGS)
 
+        fdevinfo('STARTING WEBDRIVER ...')
+        driver = w3auto.WebDriverExtended(auth[AUTH_WEBDRIVER][AUTH_BROWSER], 
+                                        auth[AUTH_WEBDRIVER][AUTH_HEADLESS])
+        fdevinfo('STARTING WEBDRIVER (OK)')
+        fdevinfo('READING INPUT DATA ...')
         try:
             emps = pd.read_csv(SHAREGS_PARSED_EMPLOYEES)
             bens = pd.read_csv(SHAREGS_PARSED_BENEFICIERS)
@@ -322,26 +333,26 @@ if __name__ == '__main__':
         except FileNotFoundError as e:
             w3auto.conserr(e)
 
-        w3auto.setup_logging(SHAREGS_INFO_LOGS, SHAREGS_WARNING_LOGS)
+        fdevinfo('READING INPUT DATA (OK)')
 
-        logging.info('/*****REGISTER EMPLOYES AND BENEFICIERS*****/')
+        fdevinfo('PROCESS: (ALTAS)')
         try:
             from_login2update_revenue_insurance(driver, auth, emps, bens)
         except KeyboardInterrupt:
             driver.close_all()
             logging.info('Keyboard interrumption detected.')
 
-        logging.info('/*************TERMINATE EMPLOYES************/')
+        fdevinfo('PROCESS: (BAJAS)')
         try:
             from_login2update_revenue_insurance(driver, auth, temps, register_mode=False)
         except KeyboardInterrupt:
             driver.close_all()
             logging.info('Keyboard interrumption detected.')
 
-        logging.info('/*************WEBDRIVER SHUTDOWN************/')
+        fdevinfo('WEBDRIVER SHUTDOWN')
         driver.quit()
 
-        logging.info('/*************SAVING REPORT FILE************/')
+        fdevinfo('SAVING REPORT FILE ...')
 
         edf = pd.DataFrame(emp_registered_out[1:], columns=emp_registered_out[0]) 
         bdf = pd.DataFrame(ben_registered_out[1:], columns=ben_registered_out[0])
@@ -350,9 +361,17 @@ if __name__ == '__main__':
         conf_file_out = auth[AUTH_NOTIFICATIONS][AUTH_FILEIO][AUTH_OUTPUT]
         
         if conf_file_out[AUTH_PARAM_USED]:
-            with pd.ExcelWriter(conf_file_out[AUTH_FILE_PATH]) as writer:
-                edf.to_excel(writer, sheet_name='Titulares asegurados', index=False)
-                bdf.to_excel(writer, sheet_name='Beneficiarios asegurados', index=False)
-                tdf.to_excel(writer, sheet_name='Titulares cesados', index=False)
+            try:
+                output_file_path = conf_file_out[AUTH_FILE_PATH]
+                with pd.ExcelWriter(output_file_path) as writer:
+                    edf.to_excel(writer, sheet_name='Titulares asegurados', index=False)
+                    bdf.to_excel(writer, sheet_name='Beneficiarios asegurados', index=False)
+                    tdf.to_excel(writer, sheet_name='Titulares cesados', index=False)
+                
+                logging.info(f"REPORT FILE SAVED AT: {output_file_path}, SIZE: {os.path.getsize(output_file_path)} [bytes]")
+            except Exception as e:
+                w3auto.conserr(e, True)
+                logging.info(f"CAN NOT SAVE THE REPORT FILE. CHECK FOR ERRORS.")
 
-        logging.info('/*******GOOD BYE!, SEE U NEXT TIME :D*******/')
+        fdevinfo('SAVING REPORT FILE (OK)')
+        fdevinfo('GOOD BYE!, SEE U NEXT TIME :)')

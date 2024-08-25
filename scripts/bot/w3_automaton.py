@@ -118,7 +118,7 @@ class WebDriverExtended:
             self.wait = WebDriverWait(self.driver, timeout_wait)
         except ValueError as e:
             conserr(e)
-
+            
     def close_all(self):
         remaining_windows = len(self.driver.window_handles)
         while remaining_windows > 0:
@@ -172,7 +172,7 @@ class WebDriverExtended:
         return element
 
     def select_in_element(self, xpath: str, option: str, ignore_selection: bool = False):
-        element = self.wait.until(EC.visibility_of_element_located((By.XPATH, xpath)))
+        element = self.wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
         if not ignore_selection:
             select = Select(element)
             select.select_by_visible_text(option)
