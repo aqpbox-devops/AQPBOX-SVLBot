@@ -158,11 +158,11 @@ class WebDriverExtended:
         time.sleep(0.1)
 
     def attr_from_element(self, xpath: str, attr:str):
-        element = self.wait.until(EC.visibility_of_element_located((By.XPATH, xpath)))
+        element = self.wait.until(EC.presence_of_element_located((By.XPATH, xpath)))
         return element.get_attribute(attr)
 
     def write_in_element(self, xpath: str, input):
-        element = self.wait.until(EC.visibility_of_element_located((By.XPATH, xpath)))
+        element = self.wait.until(EC.presence_of_element_located((By.XPATH, xpath)))
         self.driver.execute_script(f"arguments[0].value = '{input}';", element)
         return element
 
@@ -173,6 +173,7 @@ class WebDriverExtended:
 
     def select_in_element(self, xpath: str, option: str, ignore_selection: bool = False):
         element = self.wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
+        self.wait.until(EC.presence_of_element_located((By.XPATH, f"//option[text()='{option}']")))
         if not ignore_selection:
             select = Select(element)
             select.select_by_visible_text(option)
@@ -180,7 +181,7 @@ class WebDriverExtended:
         return element
     
     def pick_table_as_element(self, xpath: str, slice_tag: str):
-        table = self.wait.until(EC.visibility_of_element_located((By.XPATH, xpath)))
+        table = self.wait.until(EC.presence_of_element_located((By.XPATH, xpath)))
         element = table.find_element(By.TAG_NAME, slice_tag)
         return element
 

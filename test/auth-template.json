@@ -1,26 +1,26 @@
 {
     "url": "https://api-seguridad.sunat.gob.pe/v1/clientessol/b3639111-1546-4d06-b74f-de2c40629748/oauth2/login?originalUrl=https://apps.trabajo.gob.pe/si.segurovida/index.jsp&state=m1ntr4",
     "webdriver": {
-        "browser": "edge",
-        "headless": true
+        "browser": "(edge, chrome, firefox, safari)",
+        "headless": "(true, false)"
     },
     "login": {
-        "ruc": "xxxxxxxxx",
-        "user": "xxxxxx",
-        "password": "xxxxxxx"
+        "ruc": "xxxxxxxxxxx",
+        "user": "xxxxxxxx",
+        "password": "xxxxxxxx"
     },
-    "svl":{
-        "insurance date": null,
-        "insurance salary": 1025
+    "svl": {
+        "insurance date": "(None, 'dd/mm/Y')",
+        "insurance salary": "(Number: INT)"
     },
-    "notifications":{
+    "notifications": {
         "file io": {
             "input": {
-                "active": true,
+                "active": "(true, false)",
                 "path": "PATH/TO/input.xlsx"
             },
             "output": {
-                "active": true,
+                "active": "(true, false)",
                 "path": "PATH/TO/output.xlsx"
             }
         }

@@ -45,11 +45,11 @@ Dado que hay argumentos para el bot que se desconocen desde un inicio o pueden c
   + "browser": El webdriver ya instalado que usará el bot ("edge","chrome", "firefox", "safari").
   + "headless": **true** si no se quiere visualizar el navegador en pantalla, sino **false**.
 + "login": Credenciales de la empresa/empleador para el inicio de sesión.
-  + "ruc": Los dígitos del RUC de la empresa/empleador,
-  + "user": Nombre de usuario de la empresa/empleador,
-  + "password": Contraseña de la empresa/empleador
+  + "ruc": Los dígitos del RUC de la empresa/empleador.
+  + "user": Nombre de usuario de la empresa/empleador.
+  + "password": Contraseña de la empresa/empleador.
 + "svl": Campo de datos que solo se refieren al Seguro Vida Ley.
-  + "insurance date": La fecha de aseguramiento para registrarlo junto al trabajador. Si este campo es nulo, se considerará como fecha de aseguramiento a la fecha de inicio mostrada en la página de registro de trabajador. El formato es "dd/mm/Y"
+  + "insurance date": La fecha de aseguramiento para registrarlo junto al trabajador. Si este campo es nulo, se considerará como fecha de aseguramiento a la fecha de inicio mostrada en la página de registro de trabajador. El formato es "dd/mm/Y".
   + "insurance salary": El monto del seguro que se asigna a todos por igual en soles. El tipo es INT.
 + "notifications": Campo referido a métodos de entrada y salida del bot.
   + "file io": Configuración para la entrada/salida del bot para archivos.
