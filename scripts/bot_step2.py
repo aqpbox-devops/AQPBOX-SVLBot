@@ -165,14 +165,17 @@ def sign_up_employee(driver: w3auto.WebDriverExtended, auth, emp, bens):
         driver.send_doc_by_type("//select[@class='form-control' and @name='v_codtdocide' and @id='v_codtdocide']", 
                                 "//input[@type='text' and @name='v_codtra' and @id='v_codtra']", 
                                 emp[CKEY_DOC_TYPE], emp[CKEY_DOC], enter=True)
-        if driver.accept_alert():
-            emp_registered_log(emp, bens, False, OUT_CHK_REASONS['NFR'])
+        status, text = driver.accept_alert()
+        if status:
+            emp_registered_log(emp, bens, False, text)
             return
 
         driver.click_element("//input[@name='v_flgreing' and @value='N']")
         driver.click_element("//input[@name='v_flgcontseg' and @value='N']")
 
         date_value = auth[AUTH_SVL_CONSTANTS][AUTH_INS_DATE]
+        if date_value is None:
+            date_value = emp[CKEY_IDATE]
         if date_value is None:
             date_value = driver.attr_from_element("//input[@type='text' and @name='d_fecing']", 'value')
         if len(date_value) == 0:
@@ -187,8 +190,9 @@ def sign_up_employee(driver: w3auto.WebDriverExtended, auth, emp, bens):
         driver.click_element("//a[text()='Grabar']")
 
         reason = OUT_CHK_REASONS['OK']
-        if driver.accept_alert():
-            reason = OUT_CHK_REASONS['EAR']
+        status, text = driver.accept_alert()
+        if status:
+            reason = text
         
         emp_registered_log(emp, bens, True, reason)
 
@@ -227,8 +231,9 @@ def insert_just_doc(driver: w3auto.WebDriverExtended, auth, emp, ben) -> bool:
         driver.send_doc_by_type("//select[@name='v_codtdocideben' and @id='v_codtdocideben']",
                                 "//input[@type='text' and @name='v_codben' and @id='v_codben']",
                                 ben[CKEY_DOC_TYPE], ben[CKEY_DOC], enter=True)
-        if driver.accept_alert():#Data not found in Minsa/RENIEC
-            return False, OUT_CHK_REASONS['NFR']
+        status, text = driver.accept_alert()
+        if status:#Data not found in Minsa/RENIEC
+            return False, text
         
         return save_beneficier_data(driver, auth, emp, ben)
     except ConnectionRefusedError:
@@ -240,10 +245,6 @@ def insert_full_form(driver: w3auto.WebDriverExtended, auth, emp, ben) -> bool:
         driver.send_doc_by_type("//select[@name='v_codtdocideben' and @id='v_codtdocideben']", 
                                 "//input[@type='text' and @name='v_codben' and @name='v_codben']",
                                 ben[CKEY_DOC_TYPE], ben[CKEY_DOC], enter=False)
-        #Bad format input or Missed data in RENIEC => Can not do for this beneficier
-        #input()
-        #if driver.accept_alert():
-        #    return False, OUT_CHK_REASONS['BFI']
         
         driver.write_in_element("//input[@type='text' and @name='v_apepatben' and @id='v_apepatbenID']", ben[CKEY_APPA])
         driver.write_in_element("//input[@type='text' and @name='v_apematben' and @id='v_apematbenID']", ben[CKEY_APMA])

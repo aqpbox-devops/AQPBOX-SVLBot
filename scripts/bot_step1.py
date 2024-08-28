@@ -20,11 +20,10 @@ def parse_as_nouns(text):
 
 def get_ex4register(df):
 
-    split_point = 2
+    split_point = 3
     
     emps = df.iloc[:, :split_point]
     bens = df.iloc[:, split_point:].copy()
-
     #col: EMPLOYEE DNI
     emps = emps.rename(columns={emps.columns[1]: CKEY_DOC})
     #col: EMPLOYEE DNI copy in BENEFICIERS_TABLE (bens)
@@ -35,8 +34,8 @@ def get_ex4register(df):
     #col: TIPO DE DOCUMENTO
     bens = bens.rename(columns={bens.columns[0]: emps.columns[0]})
 
-    emps.columns = COLUMNS_ORD_REG[:split_point]
-    bens.columns = COLUMNS_ORD_REG
+    emps.columns = COLUMNS_ORD_AEMP
+    bens.columns = COLUMNS_ORD_ABEN
 
     bens[CKEY_DOC_TYPE] = bens[CKEY_DOC_TYPE].str.replace(r'[^a-zA-Z]', '', regex=True)  # Eliminar todo lo que no sean letras
     bens = bens[bens[CKEY_DOC_TYPE].str.strip() != '']
@@ -54,8 +53,12 @@ def get_ex4register(df):
 
     bens[CKEY_REL] = bens[CKEY_REL].map(lambda x: RELATIONSHIPS[str(x)])
 
+    emps[CKEY_IDATE] = emps[CKEY_IDATE].dt.strftime("%d/%m/%Y").astype(str)
     emps = emps.drop_duplicates()
     bens = bens.drop_duplicates()
+
+    print(emps.info())
+    print(bens.info())
 
     logging.info(f"To register: #Employees[{emps.shape[0]}], #Beneficiers[{bens.shape[0]}]")
 

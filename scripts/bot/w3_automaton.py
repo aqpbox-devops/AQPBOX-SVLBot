@@ -141,16 +141,17 @@ class WebDriverExtended:
         try:
             WebDriverWait(self.driver, timeout).until(EC.alert_is_present())
             alert = self.driver.switch_to.alert
-            logging.warning(f"[!]ALERT: [\"{alert.text}\"]")
+            text = alert.text
+            logging.warning(f"[!]ALERT: [\"{text}\"]")
             alert.accept()
 
-            return True
+            return True, text
         
         except TimeoutException:
-            return False
+            return False, None
 
         except NoAlertPresentException:
-            return False
+            return False, None
 
     def press_key(self, element: WebElement, mykey: Keys):
         time.sleep(0.2)
