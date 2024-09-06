@@ -31,11 +31,16 @@ El script principal es start.py, solo recibe como único argumento la ruta al ar
   - pandas: Para manejar datos ordenados en tablas.
 
 ### Ejecución:
-El comando de ejecución del bot es este:
+El bot no requiere instalación, solo clonar este repositorio y proceder con la ejecución:
++ El comando de ejecución del bot:
 
-```python start.py "PATH/TO/AUTH.JSON"```
+  ```python start.py -r "PATH/TO/AUTH.JSON"```
 
-Se debe asegurar que auth.json existe y la dirección otorgada es correcta. 
++ El comando para generar una plantilla del archivo de configuración:
+
+  ```python start.py -t "PATH/TO/AUTH.JSON"```
+
+⚠️ Se debe asegurar que auth.json existe y la dirección otorgada es correcta. 
 
 ## Archivo de configuración del usuario
 
