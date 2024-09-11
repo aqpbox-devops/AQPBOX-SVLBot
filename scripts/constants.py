@@ -5,6 +5,9 @@ SHAREGS_PARSED_TERMINATED = 'SHARED-REGS/terminated.csv'
 SHAREGS_INFO_LOGS = 'SHARED-REGS/info-logs.log'
 SHAREGS_WARNING_LOGS = 'SHARED-REGS/warn-logs.log'
 
+SHAREGS_MATCH_LOG = 'SHARED-REGS/*.log'
+SHAREGS_MATCH_CSV = 'SHARED-REGS/*.csv'
+
 #JSON Authentication file keys
 AUTH_URL = 'url'
 AUTH_WEBDRIVER = 'webdriver'

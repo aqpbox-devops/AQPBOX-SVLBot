@@ -1,15 +1,11 @@
-import json
-import sys
-import os
-import time
-import logging
-import inspect
+import time, logging
+
+import scripts.bot.errors as errors
 
 from selenium import webdriver
 from selenium.webdriver.remote.webelement import WebElement
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import Select, WebDriverWait
 from selenium.common.exceptions import *
@@ -27,47 +23,6 @@ def add_method_to_class(cls):
         setattr(cls, func.__name__, func)
         return func
     return decorator
-
-def setup_logging(debug_info_log, warning_error_log):
-    sys.stderr = open(os.devnull, 'w')
-    logger = logging.getLogger()
-    logger.setLevel(logging.DEBUG)
-
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.DEBUG)
-
-    info_handler = logging.FileHandler(debug_info_log)
-    info_handler.setLevel(logging.INFO)
-
-    warning_error_handler = logging.FileHandler(warning_error_log)
-    warning_error_handler.setLevel(logging.WARNING)
-
-    formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-    console_handler.setFormatter(formatter)
-    info_handler.setFormatter(formatter)
-    warning_error_handler.setFormatter(formatter)
-
-    logger.addHandler(console_handler)
-    logger.addHandler(info_handler)
-    logger.addHandler(warning_error_handler)
-
-    info_handler.addFilter(lambda record: record.levelno < logging.WARNING)
-    
-def conserr(e, pass_=False):
-    logging.error(f"MSG: [{e}], WHERE:[{__name__}.{inspect.stack()[1].function}]", exc_info=True)
-    if not pass_:
-        exit(0)
-
-def load_json(file):
-    try:
-        with open(file, 'r', encoding='utf-8') as F:
-            data = json.load(F)
-            return data
-    except FileNotFoundError as e:
-        conserr(e)
-    except json.JSONDecodeError as e:
-        conserr(e)
-    return None
     
 def create_webdriver(browser_name, headless=False):
     """Create a WebDriver instance based on the specified browser."""
@@ -117,7 +72,7 @@ class WebDriverExtended:
             self.driver = create_webdriver(browser_name, headless)
             self.wait = WebDriverWait(self.driver, timeout_wait)
         except ValueError as e:
-            conserr(e)
+            errors.conserr(e)
             
     def close_all(self):
         remaining_windows = len(self.driver.window_handles)
@@ -192,7 +147,7 @@ class WebDriverExtended:
                 lambda d: d.execute_script("return document.readyState") == "complete"
             )
         except TimeoutException as e:
-            conserr(e)
+            errors.conserr(e)
 
     def close_page(self):
         self.driver.close()
@@ -208,11 +163,6 @@ class WebDriverExtended:
             self.driver.switch_to.window(av_windows[index])
             self.wait_page()
 
-        except TimeoutException as e:
-            conserr(e)
-        except IndexError as e:
-            conserr(e)
-        except NoSuchWindowException as e:
-            conserr(e)
-        except WebDriverException as e:
-            conserr(e)
+        except (TimeoutException, IndexError, 
+                NoSuchWindowException, WebDriverException) as e:
+            errors.conserr(e)

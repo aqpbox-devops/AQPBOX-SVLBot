@@ -1,10 +1,9 @@
 import pandas as pd
-import argparse
 import logging
 from datetime import datetime
 
-from constants import *
-import bot.w3_automaton as w3auto
+from scripts.constants import *
+import scripts.bot.errors as errors
 
 def verify_age(birth_date):
 
@@ -76,19 +75,7 @@ def get_ex4terminated(df):
 
     return cese
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Seguro Vida Ley BotWeb.')
-    parser.add_argument('auth_file', type=str, help='Path to the authentication JSON (RUC, Password, ...)')
-
-    args = parser.parse_args()
-
-    auth = w3auto.load_json(args.auth_file)
-
-    pd.set_option('display.max_columns', None)
-    pd.set_option('display.width', None)
-
-    w3auto.setup_logging(SHAREGS_INFO_LOGS, SHAREGS_WARNING_LOGS)
-    
+def format_excel_input(auth):
     conf_file_in = auth[AUTH_NOTIFICATIONS][AUTH_FILEIO][AUTH_INPUT]
     
     if conf_file_in[AUTH_PARAM_USED]: 
@@ -98,7 +85,7 @@ if __name__ == '__main__':
             file_content = pd.read_excel(conf_file_in[AUTH_FILE_PATH], sheet_name=None)
         
         except FileNotFoundError as e:
-            w3auto.conserr(e)
+            errors.conserr(e)
 
         df_to_insert = file_content['Ingresos']
         df_to_delete = file_content['Ceses']

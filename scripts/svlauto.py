@@ -5,19 +5,19 @@ emp_terminated_out = [['Documento', 'Cesado', 'Motivo']]
 import pandas as pd
 import time
 import os
-import argparse
 from datetime import datetime
 import difflib
 import logging
 from collections import deque
 
-from constants import *
+from scripts.constants import *
 
 from selenium.common.exceptions import *
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 
-import bot.w3_automaton as w3auto
+import scripts.bot.w3_automaton as w3auto
+import scripts.bot.errors as errors
 
 class TimeSessionUnexpectedExpiration(Exception):
     def __init__(self, message="The current session has expired. Return to login again."):
@@ -128,6 +128,10 @@ def from_login2update_revenue_insurance(driver: w3auto.WebDriverExtended, auth, 
     all_emps = deque()
     for index, emp in emps.iterrows():
         all_emps.append(emp)
+
+    if not all_emps:
+        logging.info('No data to use.')
+        return
 
     while flag:
         flag = False
@@ -310,69 +314,71 @@ def terminate_employee(driver: w3auto.WebDriverExtended, auth, temp):
         terminated_log(temp, False, OUT_CHK_REASONS['EAT'])
     except ConnectionRefusedError:
         raise TimeSessionUnexpectedExpiration()
-    
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='RoBot: Seguro Vida Ley.')
-    parser.add_argument('auth_file', type=str, help='Path to the authentication JSON (RUC, Password, ...)')
 
-    args = parser.parse_args()
-
-    auth = w3auto.load_json(args.auth_file)
-
+def run_svl(auth):
     if auth is not None:
-        w3auto.setup_logging(SHAREGS_INFO_LOGS, SHAREGS_WARNING_LOGS)
 
         fdevinfo('STARTING WEBDRIVER ...')
         driver = w3auto.WebDriverExtended(auth[AUTH_WEBDRIVER][AUTH_BROWSER], 
                                         auth[AUTH_WEBDRIVER][AUTH_HEADLESS])
         fdevinfo('STARTING WEBDRIVER (OK)')
         fdevinfo('READING INPUT DATA ...')
+
+        altas_dat, bajas_dat = False, False
+
         try:
             emps = pd.read_csv(SHAREGS_PARSED_EMPLOYEES)
             bens = pd.read_csv(SHAREGS_PARSED_BENEFICIERS)
-            temps = pd.read_csv(SHAREGS_PARSED_TERMINATED)
+            altas_dat = True
         except FileNotFoundError as e:
-            w3auto.conserr(e)
-
-        fdevinfo('READING INPUT DATA (OK)')
-
-        fdevinfo('PROCESS: (ALTAS)')
+            fdevinfo('No input data for ALTAS')
         try:
-            from_login2update_revenue_insurance(driver, auth, emps, bens)
-        except KeyboardInterrupt:
-            driver.close_all()
-            logging.info('Keyboard interrumption detected.')
+            temps = pd.read_csv(SHAREGS_PARSED_TERMINATED)
+            bajas_dat = True
+        except FileNotFoundError as e:
+            fdevinfo('No input data for BAJAS')
 
-        fdevinfo('PROCESS: (BAJAS)')
-        try:
-            from_login2update_revenue_insurance(driver, auth, temps, register_mode=False)
-        except KeyboardInterrupt:
-            driver.close_all()
-            logging.info('Keyboard interrumption detected.')
+        if altas_dat or bajas_dat:
 
-        fdevinfo('WEBDRIVER SHUTDOWN')
-        driver.quit()
+            fdevinfo('READING INPUT DATA (OK)')
 
-        fdevinfo('SAVING REPORT FILE ...')
-
-        edf = pd.DataFrame(emp_registered_out[1:], columns=emp_registered_out[0]) 
-        bdf = pd.DataFrame(ben_registered_out[1:], columns=ben_registered_out[0])
-        tdf = pd.DataFrame(emp_terminated_out[1:], columns=emp_terminated_out[0])
-        
-        conf_file_out = auth[AUTH_NOTIFICATIONS][AUTH_FILEIO][AUTH_OUTPUT]
-        
-        if conf_file_out[AUTH_PARAM_USED]:
+            fdevinfo('PROCESS: (ALTAS)')
             try:
-                output_file_path = conf_file_out[AUTH_FILE_PATH]
-                with pd.ExcelWriter(output_file_path) as writer:
-                    edf.to_excel(writer, sheet_name='Titulares asegurados', index=False)
-                    bdf.to_excel(writer, sheet_name='Beneficiarios asegurados', index=False)
-                    tdf.to_excel(writer, sheet_name='Titulares cesados', index=False)
-                
-                logging.info(f"REPORT FILE SAVED AT: {output_file_path}, SIZE: {os.path.getsize(output_file_path)} [bytes]")
-            except Exception as e:
-                w3auto.conserr(e, True)
-                logging.info(f"CAN NOT SAVE THE REPORT FILE. CHECK FOR ERRORS.")
+                from_login2update_revenue_insurance(driver, auth, emps, bens)
+            except KeyboardInterrupt:
+                driver.close_all()
+                logging.info('Keyboard interrumption detected.')
 
-        fdevinfo('SAVING REPORT FILE (OK)')
+            fdevinfo('PROCESS: (BAJAS)')
+            try:
+                from_login2update_revenue_insurance(driver, auth, temps, register_mode=False)
+            except KeyboardInterrupt:
+                driver.close_all()
+                logging.info('Keyboard interrumption detected.')
+
+            fdevinfo('WEBDRIVER SHUTDOWN')
+            driver.quit()
+
+            fdevinfo('SAVING REPORT FILE ...')
+
+            edf = pd.DataFrame(emp_registered_out[1:], columns=emp_registered_out[0]) 
+            bdf = pd.DataFrame(ben_registered_out[1:], columns=ben_registered_out[0])
+            tdf = pd.DataFrame(emp_terminated_out[1:], columns=emp_terminated_out[0])
+            
+            conf_file_out = auth[AUTH_NOTIFICATIONS][AUTH_FILEIO][AUTH_OUTPUT]
+            
+            if conf_file_out[AUTH_PARAM_USED]:
+                try:
+                    output_file_path = conf_file_out[AUTH_FILE_PATH]
+                    with pd.ExcelWriter(output_file_path) as writer:
+                        edf.to_excel(writer, sheet_name='Titulares asegurados', index=False)
+                        bdf.to_excel(writer, sheet_name='Beneficiarios asegurados', index=False)
+                        tdf.to_excel(writer, sheet_name='Titulares cesados', index=False)
+                    
+                    logging.info(f"REPORT FILE SAVED AT: {output_file_path}, SIZE: {os.path.getsize(output_file_path)} [bytes]")
+                except Exception as e:
+                    errors.conserr(e, True)
+                    logging.info(f"CAN NOT SAVE THE REPORT FILE. CHECK FOR ERRORS.")
+
+            fdevinfo('SAVING REPORT FILE (OK)')
         fdevinfo('GOOD BYE!, SEE U NEXT TIME :)')

@@ -8,14 +8,14 @@ import difflib
 import logging
 from collections import deque
 
-from constants import *
+from scripts.constants import *
 
 from selenium.common.exceptions import *
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 
-import bot.w3_automaton as w3auto
-import bot_step2 as svl
+import scripts.bot.w3_automaton as w3auto
+import scripts.svlauto as svl
 
 this_report = [['Documento', 'Fecha de ingreso', 'Registrado']]
 
