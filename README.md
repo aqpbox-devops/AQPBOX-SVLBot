@@ -71,6 +71,7 @@ Para esta versión del bot, la entrada para el programa es un archivo excel 'xls
 1. La hoja de "Ingresos" debe contener las siguientes columnas:
     + Tipo de documento del trabajador: STRING (DNI, CEX, PP, CSRF, PTP, CPTP)
     + Número de documento del trabajador: STRING
+    + Fecha de aseguramiento del trabajador: DATETIME (no importa el formato)
     + Tipo de documento del beneficiario: STRING (DNI, CEX, PP, CSRF, PTP, CPTP)
     + Número de documento del beneficiario: STRING
     + Apellido paterno: STRING
