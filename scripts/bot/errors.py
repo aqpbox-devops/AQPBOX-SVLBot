@@ -1,4 +1,4 @@
-import logging, sys, os, inspect
+import logging, sys, os, inspect, glob
 
 
 def setup_logging(debug_info_log, warning_error_log):
@@ -30,3 +30,8 @@ def conserr(e, pass_=False):
     logging.error(f"MSG: [{e}], WHERE:[{__name__}.{inspect.stack()[1].function}]", exc_info=True)
     if not pass_:
         exit(0)
+
+def clean_files(file_like):
+    for fp in glob.glob(file_like):
+        with open(fp, 'w') as f:
+            pass

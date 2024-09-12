@@ -1,5 +1,5 @@
 import pandas as pd
-import logging
+import logging, os, glob
 from datetime import datetime
 
 from scripts.constants import *
@@ -75,25 +75,44 @@ def get_ex4terminated(df):
 
     return cese
 
+def check_file(auth_file_path):
+    if not os.path.isfile(auth_file_path):
+        directory = os.path.dirname(auth_file_path)
+        new_files = glob.glob(os.path.join(directory, '*.xlsx'))
+        if new_files:
+            auth_file_path = new_files[0]
+    return auth_file_path
+
 def format_excel_input(auth):
+
     conf_file_in = auth[AUTH_NOTIFICATIONS][AUTH_FILEIO][AUTH_INPUT]
     
     if conf_file_in[AUTH_PARAM_USED]: 
 
-        try:
-
-            file_content = pd.read_excel(conf_file_in[AUTH_FILE_PATH], sheet_name=None)
+        conf_file_in[AUTH_FILE_PATH] = check_file(conf_file_in[AUTH_FILE_PATH])
+        logging.info(f"Input file is: {conf_file_in[AUTH_FILE_PATH]}")
         
+        try:
+            file_content = pd.read_excel(conf_file_in[AUTH_FILE_PATH], sheet_name=None)
         except FileNotFoundError as e:
             errors.conserr(e)
 
-        df_to_insert = file_content['Ingresos']
-        df_to_delete = file_content['Ceses']
+        try:
 
-        remps, rbens = get_ex4register(df_to_insert)
+            df_to_insert = file_content['Ingresos']
+            df_to_delete = file_content['Ceses']
 
-        temps = get_ex4terminated(df_to_delete)
+            remps, rbens = get_ex4register(df_to_insert)
+
+            temps = get_ex4terminated(df_to_delete)
+
+        except (ValueError, TypeError, KeyError) as e:
+            logging.warning("The input excel file does not match the required format.")
+            errors.conserr(e)
 
         remps.to_csv(SHAREGS_PARSED_EMPLOYEES, index=False)  
         rbens.to_csv(SHAREGS_PARSED_BENEFICIERS, index=False)
         temps.to_csv(SHAREGS_PARSED_TERMINATED, index=False)
+
+        if os.path.isfile(conf_file_in[AUTH_FILE_PATH]):
+            os.remove(conf_file_in[AUTH_FILE_PATH])

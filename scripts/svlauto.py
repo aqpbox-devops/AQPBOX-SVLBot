@@ -315,6 +315,12 @@ def terminate_employee(driver: w3auto.WebDriverExtended, auth, temp):
     except ConnectionRefusedError:
         raise TimeSessionUnexpectedExpiration()
 
+def adjust_column_width(df, worksheet):
+    for idx, col in enumerate(df):
+        series = df[col]
+        max_len = max((series.astype(str).map(len).max(), len(str(series.name))))
+        worksheet.set_column(idx, idx, max_len + 2)
+
 def run_svl(auth):
     if auth is not None:
 
@@ -370,11 +376,16 @@ def run_svl(auth):
             if conf_file_out[AUTH_PARAM_USED]:
                 try:
                     output_file_path = conf_file_out[AUTH_FILE_PATH]
-                    with pd.ExcelWriter(output_file_path) as writer:
+                    with pd.ExcelWriter(output_file_path, engine='xlsxwriter') as writer:
                         edf.to_excel(writer, sheet_name='Titulares asegurados', index=False)
                         bdf.to_excel(writer, sheet_name='Beneficiarios asegurados', index=False)
                         tdf.to_excel(writer, sheet_name='Titulares cesados', index=False)
-                    
+
+                        # Adjust the column widths after all sheets have been written
+                        adjust_column_width(edf, writer.sheets['Titulares asegurados'])
+                        adjust_column_width(bdf, writer.sheets['Beneficiarios asegurados'])
+                        adjust_column_width(tdf, writer.sheets['Titulares cesados'])
+
                     logging.info(f"REPORT FILE SAVED AT: {output_file_path}, SIZE: {os.path.getsize(output_file_path)} [bytes]")
                 except Exception as e:
                     errors.conserr(e, True)
