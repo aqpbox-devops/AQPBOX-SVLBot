@@ -98,9 +98,12 @@ def closest_match_from_element(self, xpath: str, to_match: str, bias=0.8):
     select_element = self.select_in_element(xpath, to_match, ignore_selection=True)
     
     options = [option.text for option in select_element.find_elements(By.TAG_NAME, 'option')]
-
+    if len(options) > 1:
+        options = options[1:]
+    logging.info(f"<CLOSEST MATCH FOR [{to_match}]>")
+    logging.info(f"\tOPTIONS: {options}")
     closest_match = difflib.get_close_matches(to_match, options, n=1, cutoff=bias)
-
+    logging.info(f"\tCLOSEST: {closest_match}")
     if closest_match:
         self.select_in_element(xpath, closest_match[0])
 

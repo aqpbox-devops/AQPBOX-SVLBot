@@ -11,7 +11,7 @@ def verify_age(birth_date):
     return age >= 18
 
 def parse_as_nouns(text):
-    words = text.split()
+    words = str(text).split()
     
     capitalized_words = [word.title() for word in words]
     
@@ -38,20 +38,17 @@ def get_ex4register(df):
 
     bens[CKEY_DOC_TYPE] = bens[CKEY_DOC_TYPE].str.replace(r'[^a-zA-Z]', '', regex=True)  # Eliminar todo lo que no sean letras
     bens = bens[bens[CKEY_DOC_TYPE].str.strip() != '']
-
     bens[CKEY_ISADULT] = bens[CKEY_BDATE].apply(verify_age)
     bens[CKEY_APPA] = bens[CKEY_APPA].apply(parse_as_nouns)
     bens[CKEY_APMA] = bens[CKEY_APMA].apply(parse_as_nouns)
     bens[CKEY_NAME] = bens[CKEY_NAME].apply(parse_as_nouns)
     bens[CKEY_BDATE] = bens[CKEY_BDATE].dt.strftime("%d/%m/%Y").astype(str)
-    bens[CKEY_DEP] = bens[CKEY_DEP].map(lambda x: x.upper())
-    bens[CKEY_PROV] = bens[CKEY_PROV].map(lambda x: x.upper())
-    bens[CKEY_DIST] = bens[CKEY_DIST].map(lambda x: x.upper())
+    bens[CKEY_DEP] = bens[CKEY_DEP].map(lambda x: str(x).upper())
+    bens[CKEY_PROV] = bens[CKEY_PROV].map(lambda x: str(x).upper())
+    bens[CKEY_DIST] = bens[CKEY_DIST].map(lambda x: str(x).upper())
     bens[CKEY_SEX] = bens[CKEY_SEX].fillna('undef')
-    bens[CKEY_SEX] = bens[CKEY_SEX].map(lambda x: x.upper())
-
+    bens[CKEY_SEX] = bens[CKEY_SEX].map(lambda x: str(x).upper())
     bens[CKEY_REL] = bens[CKEY_REL].map(lambda x: RELATIONSHIPS[str(x)])
-
     emps[CKEY_IDATE] = emps[CKEY_IDATE].dt.strftime("%d/%m/%Y").astype(str)
     emps = emps.drop_duplicates()
     bens = bens.drop_duplicates()
@@ -70,6 +67,8 @@ def get_ex4terminated(df):
     cese[CKEY_REASON] = cese[CKEY_REASON].map(lambda x: x.upper())
     
     cese = cese.drop_duplicates()
+
+    print(cese.info())
 
     logging.info(f"To terminate: #Employees[{cese.shape[0]}]")
 
@@ -114,5 +113,5 @@ def format_excel_input(auth):
         rbens.to_csv(SHAREGS_PARSED_BENEFICIERS, index=False)
         temps.to_csv(SHAREGS_PARSED_TERMINATED, index=False)
 
-        if os.path.isfile(conf_file_in[AUTH_FILE_PATH]):
-            os.remove(conf_file_in[AUTH_FILE_PATH])
+        #if os.path.isfile(conf_file_in[AUTH_FILE_PATH]):
+        #    os.remove(conf_file_in[AUTH_FILE_PATH])

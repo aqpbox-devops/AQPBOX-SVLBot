@@ -123,14 +123,15 @@ class WebDriverExtended:
         return element
 
     def click_element(self, xpath: str):
+        self.wait_page()
         element = self.wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
         element.click()
         return element
 
     def select_in_element(self, xpath: str, option: str, ignore_selection: bool = False):
         element = self.wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
-        self.wait.until(EC.presence_of_element_located((By.XPATH, f"//option[text()='{option}']")))
         if not ignore_selection:
+            self.wait.until(EC.presence_of_element_located((By.XPATH, f"//option[text()='{option}']")))
             select = Select(element)
             select.select_by_visible_text(option)
 
