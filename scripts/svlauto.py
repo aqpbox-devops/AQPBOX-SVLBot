@@ -19,11 +19,6 @@ from selenium.webdriver.common.keys import Keys
 import scripts.bot.w3_automaton as w3auto
 import scripts.bot.errors as errors
 
-class TimeSessionUnexpectedExpiration(Exception):
-    def __init__(self, message="The current session has expired. Return to login again."):
-        self.message = message
-        super().__init__(self.message)
-
 def yesno(val: bool):
     ans = 'Sí' if val else 'No'
     return ans
@@ -135,6 +130,8 @@ def from_login2update_revenue_insurance(driver: w3auto.WebDriverExtended, auth, 
     if not all_emps:
         logging.info('No data to use.')
         return
+    
+    emp = None
 
     while flag:
         flag = False
@@ -152,171 +149,155 @@ def from_login2update_revenue_insurance(driver: w3auto.WebDriverExtended, auth, 
             if register_mode:
                 while all_emps:
                     emp = all_emps.popleft()
-                    driver.wait_page()
-                    selected_bens = bens.loc[bens[CKEY_PK] == emp[CKEY_DOC]]#IMPORTANT CODE LINE!!!!!!!!
-                    sign_up_employee(driver, auth, emp, selected_bens)
+                    if emp is not None:
+                        driver.wait_page()
+                        selected_bens = bens.loc[bens[CKEY_PK] == emp[CKEY_DOC]]#IMPORTANT CODE LINE!!!!!!!!
+                        sign_up_employee(driver, auth, emp, selected_bens)
             else:
                 while all_emps:
                     emp = all_emps.popleft()
-                    driver.wait_page()
-                    terminate_employee(driver, auth, emp)
+                    if emp is not None:
+                        driver.wait_page()
+                        terminate_employee(driver, auth, emp)
                     
             driver.click_element("//a[text()='CERRAR SESIÓN']")
-        except TimeSessionUnexpectedExpiration:
+        except (ConnectionError, 
+                ConnectionRefusedError, 
+                NoSuchWindowException, 
+                StaleElementReferenceException):
             flag = True
+            all_emps.append(emp)
             driver.close_all()
 
 def sign_up_employee(driver: w3auto.WebDriverExtended, auth, emp, bens):
 
-    try:
-        driver.send_doc_by_type("//select[@class='form-control' and @name='v_codtdocide' and @id='v_codtdocide']", 
-                                "//input[@type='text' and @name='v_codtra' and @id='v_codtra']", 
-                                emp[CKEY_DOC_TYPE], emp[CKEY_DOC], enter=True)
-        status, text = driver.accept_alert()
-        if status:
-            emp_registered_log(emp, bens, False, text)
-            return
+    driver.send_doc_by_type("//select[@class='form-control' and @name='v_codtdocide' and @id='v_codtdocide']", 
+                            "//input[@type='text' and @name='v_codtra' and @id='v_codtra']", 
+                            emp[CKEY_DOC_TYPE], emp[CKEY_DOC], enter=True)
+    status, text = driver.accept_alert()
+    if status:
+        emp_registered_log(emp, bens, False, text)
+        return
 
-        driver.click_element("//input[@name='v_flgreing' and @value='N']")
-        driver.click_element("//input[@name='v_flgcontseg' and @value='N']")
+    driver.click_element("//input[@name='v_flgreing' and @value='N']")
+    driver.click_element("//input[@name='v_flgcontseg' and @value='N']")
 
-        date_value = auth[AUTH_SVL_CONSTANTS][AUTH_INS_DATE]
-        if date_value is None:
-            date_value = emp[CKEY_IDATE]
-        if date_value is None:
-            date_value = driver.attr_from_element("//input[@type='text' and @name='d_fecing']", 'value')
-        if len(date_value) == 0:
-            logging.warning('Can not find entry insurance date')
-            driver.reload_page()
-            emp_registered_log(emp, bens, False, OUT_CHK_REASONS['CFE'])
-            return
+    date_value = auth[AUTH_SVL_CONSTANTS][AUTH_INS_DATE]
+    if date_value is None:
+        date_value = emp[CKEY_IDATE]
+    if date_value is None:
+        date_value = driver.attr_from_element("//input[@type='text' and @name='d_fecing']", 'value')
+    if len(date_value) == 0:
+        logging.warning('Can not find entry insurance date')
+        driver.reload_page()
+        emp_registered_log(emp, bens, False, OUT_CHK_REASONS['CFE'])
+        return
 
-        driver.write_in_element("//input[@type='text' and @name='d_fecasetra']", date_value)
-        driver.write_in_element("//input[@type='text' and @name='n_monrem']", auth[AUTH_SVL_CONSTANTS][AUTH_SALARY])
+    driver.write_in_element("//input[@type='text' and @name='d_fecasetra']", date_value)
+    driver.write_in_element("//input[@type='text' and @name='n_monrem']", auth[AUTH_SVL_CONSTANTS][AUTH_SALARY])
 
-        driver.click_element("//a[text()='Grabar']")
+    driver.click_element("//a[text()='Grabar']")
 
-        reason = OUT_CHK_REASONS['OK']
-        status, text = driver.accept_alert()
-        if status:
-            reason = text
-        
-        emp_registered_log(emp, bens, True, reason)
+    reason = OUT_CHK_REASONS['OK']
+    status, text = driver.accept_alert()
+    if status:
+        reason = text
+    
+    emp_registered_log(emp, bens, True, reason)
 
-        return search_beneficier_by_doc(driver, auth, emp, bens)
-    except ConnectionRefusedError:
-        raise TimeSessionUnexpectedExpiration()
+    return search_beneficier_by_doc(driver, auth, emp, bens)
 
 def search_beneficier_by_doc(driver: w3auto.WebDriverExtended, auth, emp, bens):
 
-    try:
-        if employee_is_already_registered(driver,  emp[CKEY_DOC], emp[CKEY_DOC_TYPE]):
-            driver.click_element("//a[img[@title='Ingresar Beneficiario(s)']]")
-            driver.pick_window(1, 2)
+    if employee_is_already_registered(driver,  emp[CKEY_DOC], emp[CKEY_DOC_TYPE]):
+        driver.click_element("//a[img[@title='Ingresar Beneficiario(s)']]")
+        driver.pick_window(1, 2)
 
-            for index, ben in bens.iterrows():
-                registered, reason = is_adult_question(driver, auth, emp, ben)
-                ben_registered_log(emp, ben, registered, reason)
+        for index, ben in bens.iterrows():
+            registered, reason = is_adult_question(driver, auth, emp, ben)
+            ben_registered_log(emp, ben, registered, reason)
 
-            return close_beneficier_page(driver, auth, emp, ben)
-        
-    except ConnectionRefusedError:
-        raise TimeSessionUnexpectedExpiration()
+        return close_beneficier_page(driver, auth, emp, ben)
 
 def is_adult_question(driver: w3auto.WebDriverExtended, auth, emp, ben) -> bool:
-    try:
-        if ben[CKEY_ISADULT]:
-            return insert_just_doc(driver, auth, emp, ben)
-        else:
-            return insert_full_form(driver, auth, emp, ben)
-    except ConnectionRefusedError:
-        raise TimeSessionUnexpectedExpiration()
+
+    if ben[CKEY_ISADULT]:
+        return insert_just_doc(driver, auth, emp, ben)
+    else:
+        return insert_full_form(driver, auth, emp, ben)
     
 def insert_just_doc(driver: w3auto.WebDriverExtended, auth, emp, ben) -> bool:
-    try:
-        driver.click_element("//input[@name='answer' and @value='no']")
-        driver.send_doc_by_type("//select[@name='v_codtdocideben' and @id='v_codtdocideben']",
-                                "//input[@type='text' and @name='v_codben' and @id='v_codben']",
-                                ben[CKEY_DOC_TYPE], ben[CKEY_DOC], enter=True)
-        status, text = driver.accept_alert()
-        if status:#Data not found in Minsa/RENIEC
-            return False, text
-        
-        return save_beneficier_data(driver, auth, emp, ben)
-    except ConnectionRefusedError:
-        raise TimeSessionUnexpectedExpiration()
+    
+    driver.click_element("//input[@name='answer' and @value='no']")
+    driver.send_doc_by_type("//select[@name='v_codtdocideben' and @id='v_codtdocideben']",
+                            "//input[@type='text' and @name='v_codben' and @id='v_codben']",
+                            ben[CKEY_DOC_TYPE], ben[CKEY_DOC], enter=True)
+    status, text = driver.accept_alert()
+    if status:#Data not found in Minsa/RENIEC
+        return False, text
+    
+    return save_beneficier_data(driver, auth, emp, ben)
 
 def insert_full_form(driver: w3auto.WebDriverExtended, auth, emp, ben) -> bool:
-    try:
-        driver.click_element("//input[@name='answer' and @value='yes']")
-        driver.send_doc_by_type("//select[@name='v_codtdocideben' and @id='v_codtdocideben']", 
-                                "//input[@type='text' and @name='v_codben' and @name='v_codben']",
-                                ben[CKEY_DOC_TYPE], ben[CKEY_DOC], enter=False)
-        
-        driver.write_in_element("//input[@type='text' and @name='v_apepatben' and @id='v_apepatbenID']", ben[CKEY_APPA])
-        driver.write_in_element("//input[@type='text' and @name='v_apematben' and @id='v_apematbenID']", ben[CKEY_APMA])
-        driver.write_in_element("//input[@type='text' and @name='v_nomben' and @id='v_nombenID']", ben[CKEY_NAME])
-        driver.write_in_element("//input[@type='text' and @name='d_fecnacben' and @id='d_fecnacben']", ben[CKEY_BDATE])
-        driver.write_in_element("//input[@type='text' and @name='v_direccion' and @id='v_direccionID']", ben[CKEY_ADDR])
 
-        driver.closest_match_from_element("//select[@name='v_coddepBen' and @id='v_coddepBen']", ben[CKEY_DEP])
-        driver.closest_match_from_element("//select[@name='v_codproBen' and @id='v_codproBen']", ben[CKEY_PROV])
-        driver.closest_match_from_element("//select[@name='v_coddisBen' and @id='v_coddisBen']", ben[CKEY_DIST])
-        
-        if ben[CKEY_SEX] in LGENDER_VARS:
-            driver.click_element("//input[@type='radio' and @name='v_genben' and @value='M']")
-        else:
-            driver.click_element("//input[@type='radio' and @name='v_genben' and @value='F']")
+    driver.click_element("//input[@name='answer' and @value='yes']")
+    driver.send_doc_by_type("//select[@name='v_codtdocideben' and @id='v_codtdocideben']", 
+                            "//input[@type='text' and @name='v_codben' and @name='v_codben']",
+                            ben[CKEY_DOC_TYPE], ben[CKEY_DOC], enter=False)
+    
+    driver.write_in_element("//input[@type='text' and @name='v_apepatben' and @id='v_apepatbenID']", ben[CKEY_APPA])
+    driver.write_in_element("//input[@type='text' and @name='v_apematben' and @id='v_apematbenID']", ben[CKEY_APMA])
+    driver.write_in_element("//input[@type='text' and @name='v_nomben' and @id='v_nombenID']", ben[CKEY_NAME])
+    driver.write_in_element("//input[@type='text' and @name='d_fecnacben' and @id='d_fecnacben']", ben[CKEY_BDATE])
+    driver.write_in_element("//input[@type='text' and @name='v_direccion' and @id='v_direccionID']", ben[CKEY_ADDR])
 
-        return save_beneficier_data(driver, auth, emp, ben)
-    except ConnectionRefusedError:
-        raise TimeSessionUnexpectedExpiration()
+    driver.closest_match_from_element("//select[@name='v_coddepBen' and @id='v_coddepBen']", ben[CKEY_DEP])
+    driver.closest_match_from_element("//select[@name='v_codproBen' and @id='v_codproBen']", ben[CKEY_PROV])
+    driver.closest_match_from_element("//select[@name='v_coddisBen' and @id='v_coddisBen']", ben[CKEY_DIST])
+    
+    if ben[CKEY_SEX] in LGENDER_VARS:
+        driver.click_element("//input[@type='radio' and @name='v_genben' and @value='M']")
+    else:
+        driver.click_element("//input[@type='radio' and @name='v_genben' and @value='F']")
+
+    return save_beneficier_data(driver, auth, emp, ben)
 
 def save_beneficier_data(driver: w3auto.WebDriverExtended, auth, emp, ben) -> bool:
 
-    try:
-        driver.select_in_element("//select[@name='n_codvinfam' and @class='form-control']", ben[CKEY_REL])
+    driver.select_in_element("//select[@name='n_codvinfam' and @class='form-control']", ben[CKEY_REL])
 
-        driver.click_element("//a[text()='Grabar']")
+    driver.click_element("//a[text()='Grabar']")
 
-        driver.accept_alert()
+    driver.accept_alert()
 
-        return True, OUT_CHK_REASONS['OK']
-
-    except ConnectionRefusedError:
-        raise TimeSessionUnexpectedExpiration()
+    return True, OUT_CHK_REASONS['OK']
 
 def close_beneficier_page(driver: w3auto.WebDriverExtended, auth, emp, ben):
     
-    try:
-        driver.click_element("//a[text()='Regresar']")
-        driver.pick_window(0, 1)
-    except ConnectionRefusedError:
-        raise TimeSessionUnexpectedExpiration()
+    driver.click_element("//a[text()='Regresar']")
+    driver.pick_window(0, 1)
 
 #EMPLOYEES TERMINATION
 
 def terminate_employee(driver: w3auto.WebDriverExtended, auth, temp):
-    try:
-        if employee_is_already_registered(driver,  temp[CKEY_DOC], temp[CKEY_DOC_TYPE]):
-            driver.click_element("//a[img[@title='Dar de Baja al Trabajador Asegurado']]")
-            driver.pick_window(1, 2)
 
-            driver.closest_match_from_element("//select[@name='tipomotivo' and @class='form-control']", temp[CKEY_REASON])
-            driver.write_in_element("//input[@type='text' and @name='d_fecesttra' and @id='d_fecesttra']", temp[CKEY_TDATE]) 
-            driver.click_element("//input[@type='checkbox' and @name='v_aceptabaja' and @value='on' and @id='v_aceptabaja']")
-            driver.click_element("//a[text()='Grabar']")
+    if employee_is_already_registered(driver,  temp[CKEY_DOC], temp[CKEY_DOC_TYPE]):
+        driver.click_element("//a[img[@title='Dar de Baja al Trabajador Asegurado']]")
+        driver.pick_window(1, 2)
 
-            driver.accept_alert()
-            terminated_log(temp, True, OUT_CHK_REASONS['OK'])
+        driver.closest_match_from_element("//select[@name='tipomotivo' and @class='form-control']", temp[CKEY_REASON])
+        driver.write_in_element("//input[@type='text' and @name='d_fecesttra' and @id='d_fecesttra']", temp[CKEY_TDATE]) 
+        driver.click_element("//input[@type='checkbox' and @name='v_aceptabaja' and @value='on' and @id='v_aceptabaja']")
+        driver.click_element("//a[text()='Grabar']")
 
-            driver.pick_window(0, 1)
+        driver.accept_alert()
+        terminated_log(temp, True, OUT_CHK_REASONS['OK'])
 
-            return
-        
-        terminated_log(temp, False, OUT_CHK_REASONS['EAT'])
-    except ConnectionRefusedError:
-        raise TimeSessionUnexpectedExpiration()
+        driver.pick_window(0, 1)
+
+        return
+    
+    terminated_log(temp, False, OUT_CHK_REASONS['EAT'])
 
 def adjust_column_width(df, worksheet):
     for idx, col in enumerate(df):

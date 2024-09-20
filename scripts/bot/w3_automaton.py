@@ -109,15 +109,18 @@ class WebDriverExtended:
             return False, None
 
     def press_key(self, element: WebElement, mykey: Keys):
+        self.wait_page()
         time.sleep(0.2)
         element.send_keys(mykey)
         time.sleep(0.1)
 
     def attr_from_element(self, xpath: str, attr:str):
+        self.wait_page()
         element = self.wait.until(EC.presence_of_element_located((By.XPATH, xpath)))
         return element.get_attribute(attr)
 
     def write_in_element(self, xpath: str, input):
+        self.wait_page()
         element = self.wait.until(EC.presence_of_element_located((By.XPATH, xpath)))
         self.driver.execute_script(f"arguments[0].value = '{input}';", element)
         return element
@@ -129,6 +132,7 @@ class WebDriverExtended:
         return element
 
     def select_in_element(self, xpath: str, option: str, ignore_selection: bool = False):
+        self.wait_page()
         element = self.wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
         if not ignore_selection:
             self.wait.until(EC.presence_of_element_located((By.XPATH, f"//option[text()='{option}']")))
@@ -138,6 +142,7 @@ class WebDriverExtended:
         return element
     
     def pick_table_as_element(self, xpath: str, slice_tag: str):
+        self.wait_page()
         table = self.wait.until(EC.presence_of_element_located((By.XPATH, xpath)))
         element = table.find_element(By.TAG_NAME, slice_tag)
         return element
