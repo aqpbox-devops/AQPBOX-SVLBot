@@ -169,6 +169,7 @@ def from_login2update_revenue_insurance(driver: w3auto.WebDriverExtended, auth, 
             flag = True
             all_emps.append(emp)
             logging.info("-- TRYING AGAIN - RESTARTING --")
+            time.sleep(0.5)
             driver.close_all()
 
 def sign_up_employee(driver: w3auto.WebDriverExtended, auth, emp, bens):

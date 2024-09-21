@@ -75,11 +75,15 @@ class WebDriverExtended:
             errors.conserr(e)
             
     def close_all(self):
-        remaining_windows = len(self.driver.window_handles)
-        while remaining_windows > 0:
+        tabs = self.driver.window_handles
+        first_tab = tabs[0]
+
+        for tab in tabs[1:]:
+            self.driver.switch_to.window(tab)
             self.driver.close()
-            remaining_windows -= 1
-            self.wait.until(EC.number_of_windows_to_be(remaining_windows))
+            self.wait.until(EC.number_of_windows_to_be(len(self.driver.window_handles)))
+
+        self.driver.switch_to.window(first_tab)
 
     def quit(self):
         self.driver.quit()
