@@ -164,9 +164,11 @@ def from_login2update_revenue_insurance(driver: w3auto.WebDriverExtended, auth, 
         except (ConnectionError, 
                 ConnectionRefusedError, 
                 NoSuchWindowException, 
-                StaleElementReferenceException):
+                StaleElementReferenceException,
+                TimeoutException):
             flag = True
             all_emps.append(emp)
+            logging.info("-- TRYING AGAIN - RESTARTING --")
             driver.close_all()
 
 def sign_up_employee(driver: w3auto.WebDriverExtended, auth, emp, bens):

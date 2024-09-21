@@ -92,7 +92,7 @@ class WebDriverExtended:
         self.driver.refresh()
         self.wait_page()
 
-    def accept_alert(self, timeout=0.2):
+    def accept_alert(self, timeout=0.35):
         try:
             WebDriverWait(self.driver, timeout).until(EC.alert_is_present())
             alert = self.driver.switch_to.alert
@@ -109,30 +109,25 @@ class WebDriverExtended:
             return False, None
 
     def press_key(self, element: WebElement, mykey: Keys):
-        self.wait_page()
-        time.sleep(0.2)
+        time.sleep(0.25)
         element.send_keys(mykey)
-        time.sleep(0.1)
+        time.sleep(0.2)
 
     def attr_from_element(self, xpath: str, attr:str):
-        self.wait_page()
         element = self.wait.until(EC.presence_of_element_located((By.XPATH, xpath)))
         return element.get_attribute(attr)
 
     def write_in_element(self, xpath: str, input):
-        self.wait_page()
         element = self.wait.until(EC.presence_of_element_located((By.XPATH, xpath)))
         self.driver.execute_script(f"arguments[0].value = '{input}';", element)
         return element
 
     def click_element(self, xpath: str):
-        self.wait_page()
         element = self.wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
         element.click()
         return element
 
     def select_in_element(self, xpath: str, option: str, ignore_selection: bool = False):
-        self.wait_page()
         element = self.wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
         if not ignore_selection:
             self.wait.until(EC.presence_of_element_located((By.XPATH, f"//option[text()='{option}']")))
@@ -142,7 +137,6 @@ class WebDriverExtended:
         return element
     
     def pick_table_as_element(self, xpath: str, slice_tag: str):
-        self.wait_page()
         table = self.wait.until(EC.presence_of_element_located((By.XPATH, xpath)))
         element = table.find_element(By.TAG_NAME, slice_tag)
         return element
@@ -153,7 +147,8 @@ class WebDriverExtended:
                 lambda d: d.execute_script("return document.readyState") == "complete"
             )
         except TimeoutException as e:
-            errors.conserr(e)
+            errors.conserr(e, True)
+            raise ConnectionError
 
     def close_page(self):
         self.driver.close()
@@ -171,4 +166,4 @@ class WebDriverExtended:
 
         except (TimeoutException, IndexError, 
                 NoSuchWindowException, WebDriverException) as e:
-            errors.conserr(e)
+            raise TimeoutException
