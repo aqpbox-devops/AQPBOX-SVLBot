@@ -166,7 +166,11 @@ def from_login2update_revenue_insurance(driver: w3auto.WebDriverExtended, auth, 
                 NoSuchWindowException, 
                 StaleElementReferenceException,
                 TimeoutException,
-                UnexpectedAlertPresentException):
+                UnexpectedAlertPresentException,
+                ElementNotVisibleException,
+                ElementNotSelectableException,
+                ElementNotInteractableException,
+                SessionNotCreatedException):
             flag = True
             all_emps.append(emp)
             logging.info("-- TRYING AGAIN - RESTARTING --")
