@@ -165,7 +165,8 @@ def from_login2update_revenue_insurance(driver: w3auto.WebDriverExtended, auth, 
                 ConnectionRefusedError, 
                 NoSuchWindowException, 
                 StaleElementReferenceException,
-                TimeoutException):
+                TimeoutException,
+                UnexpectedAlertPresentException):
             flag = True
             all_emps.append(emp)
             logging.info("-- TRYING AGAIN - RESTARTING --")
