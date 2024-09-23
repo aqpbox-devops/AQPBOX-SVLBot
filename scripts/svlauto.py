@@ -241,7 +241,7 @@ def insert_just_doc(driver: w3auto.WebDriverExtended, auth, emp, ben) -> bool:
                             "//input[@type='text' and @name='v_codben' and @id='v_codben']",
                             ben[CKEY_DOC_TYPE], ben[CKEY_DOC], enter=True)
     status, text = driver.accept_alert()
-    if status:#Data not found in Minsa/RENIEC
+    if status:#Data not found in MINTRA/RENIEC
         return False, text
     
     return save_beneficier_data(driver, auth, emp, ben)

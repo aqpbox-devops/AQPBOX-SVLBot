@@ -127,9 +127,13 @@ class WebDriverExtended:
         return element
 
     def click_element(self, xpath: str):
-        element = self.wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
-        element.click()
-        return element
+        try:
+            element = self.wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
+            element.click()
+            return element
+        except ElementClickInterceptedException:
+            raise ConnectionError
+            
 
     def select_in_element(self, xpath: str, option: str, ignore_selection: bool = False):
         element = self.wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
