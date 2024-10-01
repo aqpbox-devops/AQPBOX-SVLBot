@@ -30,12 +30,10 @@ if __name__ == '__main__':
         tgen.generate_template(args.auth_temp)
 
     if args.auth_run:
-        errors.clean_files(SHAREGS_MATCH_LOG)
-        errors.clean_files(SHAREGS_MATCH_CSV)
 
         auth = load_json(args.auth_run)
 
-        ifo.format_excel_input(auth)# READ DATA FROM FILE
-        svlauto.run_svl(auth)# EXECUTE BOT
+        csv_cache = ifo.format_excel_input(auth)# READ DATA FROM FILE
+        if svlauto.run_svl(auth, csv_cache):# EXECUTE BOT
 
-        errors.clean_files(SHAREGS_MATCH_CSV)
+            errors.clean_files(SHAREGS_MATCH_CSV)

@@ -64,7 +64,11 @@ def click_newest_insurance(self, xpath):
 
         check = cols[0]
         start_date =  datetime.strptime(cols[3].text.strip(), "%d/%m/%Y")
+        end_date = datetime.strptime(cols[4].text.strip(), "%d/%m/%Y")
 
+        if end_date < current_date:
+            return False
+        
         date_diff = abs((start_date - current_date).days)
 
         if closest_date_diff is None or date_diff < closest_date_diff:
@@ -72,6 +76,7 @@ def click_newest_insurance(self, xpath):
             closest_check = check
         
     closest_check.click()
+    return True
 
 @w3auto.add_method_to_class(w3auto.WebDriverExtended)
 def send_doc_by_type(self, xpath_t, xpath_n, doc_t, doc_n, enter=True):
@@ -129,7 +134,7 @@ def from_login2update_revenue_insurance(driver: w3auto.WebDriverExtended, auth, 
 
     if not all_emps:
         logging.info('No data to use.')
-        return
+        return False
     
     emp = None
 
@@ -143,7 +148,10 @@ def from_login2update_revenue_insurance(driver: w3auto.WebDriverExtended, auth, 
         driver.click_element("//area[@shape='rect' and @coords='250,20,464,68']")
         driver.select_in_element("//select[@name='v_ruc_ase' and @class='form-control']", 'PACIFICO COMPAÑIA DE SEGUROS Y REASEGUROS')
         driver.click_element("//a[text()='Buscar']")
-        driver.click_newest_insurance("//table[@border='2' and @id='lstSeguro' and @class='forsat']")
+        if not driver.click_newest_insurance("//table[@border='2' and @id='lstSeguro' and @class='forsat']"):
+            logging.info('Se requiere actualizar la poliza')
+            return False
+        
         driver.click_element("//a[text()='Altas/Bajas actualización']")
         try:
             if register_mode:
@@ -161,8 +169,10 @@ def from_login2update_revenue_insurance(driver: w3auto.WebDriverExtended, auth, 
                         terminate_employee(driver, auth, emp)
                     
             driver.click_element("//a[text()='CERRAR SESIÓN']")
+            return True
         except (ConnectionError, 
                 ConnectionRefusedError, 
+                ConnectionAbortedError,
                 NoSuchWindowException, 
                 StaleElementReferenceException,
                 TimeoutException,
@@ -313,7 +323,7 @@ def adjust_column_width(df, worksheet):
         max_len = max((series.astype(str).map(len).max(), len(str(series.name))))
         worksheet.set_column(idx, idx, max_len + 2)
 
-def run_svl(auth):
+def run_svl(auth, csv_cache):
     if auth is not None:
 
         fdevinfo('STARTING WEBDRIVER ...')
@@ -325,13 +335,13 @@ def run_svl(auth):
         altas_dat, bajas_dat = False, False
 
         try:
-            emps = pd.read_csv(SHAREGS_PARSED_EMPLOYEES)
-            bens = pd.read_csv(SHAREGS_PARSED_BENEFICIERS)
+            emps = pd.read_csv(csv_cache[0])
+            bens = pd.read_csv(csv_cache[1])
             altas_dat = True
         except FileNotFoundError as e:
             fdevinfo('No input data for ALTAS')
         try:
-            temps = pd.read_csv(SHAREGS_PARSED_TERMINATED)
+            temps = pd.read_csv(csv_cache[2])
             bajas_dat = True
         except FileNotFoundError as e:
             fdevinfo('No input data for BAJAS')
@@ -341,47 +351,59 @@ def run_svl(auth):
             fdevinfo('READING INPUT DATA (OK)')
 
             fdevinfo('PROCESS: (ALTAS)')
+            insurance_available = False
             try:
-                from_login2update_revenue_insurance(driver, auth, emps, bens)
+                insurance_available = from_login2update_revenue_insurance(driver, auth, emps, bens)
             except KeyboardInterrupt:
                 driver.close_all()
                 logging.info('Keyboard interrumption detected.')
 
             fdevinfo('PROCESS: (BAJAS)')
             try:
-                from_login2update_revenue_insurance(driver, auth, temps, register_mode=False)
+                insurance_available = from_login2update_revenue_insurance(driver, auth, temps, register_mode=False)
             except KeyboardInterrupt:
                 driver.close_all()
                 logging.info('Keyboard interrumption detected.')
 
             fdevinfo('WEBDRIVER SHUTDOWN')
             driver.quit()
+            if insurance_available:
+                fdevinfo('SAVING REPORT FILE ...')
 
-            fdevinfo('SAVING REPORT FILE ...')
+                edf = pd.DataFrame(emp_registered_out[1:], columns=emp_registered_out[0]) 
+                bdf = pd.DataFrame(ben_registered_out[1:], columns=ben_registered_out[0])
+                tdf = pd.DataFrame(emp_terminated_out[1:], columns=emp_terminated_out[0])
+                
+                conf_file_out = auth[AUTH_NOTIFICATIONS][AUTH_FILEIO][AUTH_OUTPUT]
+                
+                if conf_file_out[AUTH_PARAM_USED]:
+                    try:
+                        output_file_path = conf_file_out[AUTH_FILE_PATH]
+                        with pd.ExcelWriter(output_file_path, engine='xlsxwriter') as writer:
+                            edf.to_excel(writer, sheet_name='Titulares asegurados', index=False)
+                            bdf.to_excel(writer, sheet_name='Beneficiarios asegurados', index=False)
+                            tdf.to_excel(writer, sheet_name='Titulares cesados', index=False)
 
-            edf = pd.DataFrame(emp_registered_out[1:], columns=emp_registered_out[0]) 
-            bdf = pd.DataFrame(ben_registered_out[1:], columns=ben_registered_out[0])
-            tdf = pd.DataFrame(emp_terminated_out[1:], columns=emp_terminated_out[0])
-            
-            conf_file_out = auth[AUTH_NOTIFICATIONS][AUTH_FILEIO][AUTH_OUTPUT]
-            
-            if conf_file_out[AUTH_PARAM_USED]:
-                try:
-                    output_file_path = conf_file_out[AUTH_FILE_PATH]
-                    with pd.ExcelWriter(output_file_path, engine='xlsxwriter') as writer:
-                        edf.to_excel(writer, sheet_name='Titulares asegurados', index=False)
-                        bdf.to_excel(writer, sheet_name='Beneficiarios asegurados', index=False)
-                        tdf.to_excel(writer, sheet_name='Titulares cesados', index=False)
+                            # Adjust the column widths after all sheets have been written
+                            adjust_column_width(edf, writer.sheets['Titulares asegurados'])
+                            adjust_column_width(bdf, writer.sheets['Beneficiarios asegurados'])
+                            adjust_column_width(tdf, writer.sheets['Titulares cesados'])
 
-                        # Adjust the column widths after all sheets have been written
-                        adjust_column_width(edf, writer.sheets['Titulares asegurados'])
-                        adjust_column_width(bdf, writer.sheets['Beneficiarios asegurados'])
-                        adjust_column_width(tdf, writer.sheets['Titulares cesados'])
+                        logging.info(f"REPORT FILE SAVED AT: {output_file_path}, SIZE: {os.path.getsize(output_file_path)} [bytes]")
+                    except Exception as e:
+                        errors.conserr(e, True)
+                        logging.info(f"CAN NOT SAVE THE REPORT FILE. CHECK FOR ERRORS.")
+                        
+                        return False
 
-                    logging.info(f"REPORT FILE SAVED AT: {output_file_path}, SIZE: {os.path.getsize(output_file_path)} [bytes]")
-                except Exception as e:
-                    errors.conserr(e, True)
-                    logging.info(f"CAN NOT SAVE THE REPORT FILE. CHECK FOR ERRORS.")
+                fdevinfo('SAVING REPORT FILE (OK)')
+                fdevinfo('GOOD BYE!, SEE U NEXT TIME :)')
 
-            fdevinfo('SAVING REPORT FILE (OK)')
+                conf_file_in = auth[AUTH_NOTIFICATIONS][AUTH_FILEIO][AUTH_INPUT]
+
+                if os.path.isfile(conf_file_in[AUTH_FILE_PATH]):
+                    os.remove(conf_file_in[AUTH_FILE_PATH])
+
         fdevinfo('GOOD BYE!, SEE U NEXT TIME :)')
+
+        return True

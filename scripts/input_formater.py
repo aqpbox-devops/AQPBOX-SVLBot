@@ -4,6 +4,30 @@ from datetime import datetime
 
 from scripts.constants import *
 import scripts.bot.errors as errors
+import hashlib
+
+def hash_excel(file_content):
+    combined_string = ""
+    for sheet_name, df in file_content.items():
+        combined_string += df.to_string(index=False)
+    
+    combined_bytes = combined_string.encode('utf-8')
+    return hashlib.sha256(combined_bytes).hexdigest()
+
+def verify_hash_in_files(end_file_csv: str, file_paths):
+    all_exist = True
+    all_match = True
+
+    for path in file_paths:
+        if not os.path.exists(path):
+            print(f"File does not exist: {path}")
+            all_exist = False
+            all_match = False  # Si uno no existe, no puede coincidir
+
+        else:
+            all_match = all_match and str(path).endswith(end_file_csv)
+
+    return all_exist and all_match
 
 def verify_age(birth_date):
 
@@ -90,11 +114,27 @@ def format_excel_input(auth):
 
         conf_file_in[AUTH_FILE_PATH] = check_file(conf_file_in[AUTH_FILE_PATH])
         logging.info(f"Input file is: {conf_file_in[AUTH_FILE_PATH]}")
+
+        hash_code = '0'
         
         try:
             file_content = pd.read_excel(conf_file_in[AUTH_FILE_PATH], sheet_name=None)
+
+            hash_code = hash_excel(file_content)
+            
         except FileNotFoundError as e:
             errors.conserr(e)
+
+        end_file_csv = f"_{hash_code}.csv"
+
+        csv_f = (SHAREGS_PARSED_EMPLOYEES + end_file_csv,
+                 SHAREGS_PARSED_BENEFICIERS + end_file_csv, 
+                 SHAREGS_PARSED_TERMINATED + end_file_csv)
+
+        if verify_hash_in_files(end_file_csv, [SHAREGS_PARSED_EMPLOYEES, 
+                                            SHAREGS_PARSED_BENEFICIERS, 
+                                            SHAREGS_PARSED_TERMINATED]):
+            return csv_f
 
         try:
 
@@ -109,9 +149,14 @@ def format_excel_input(auth):
             logging.warning("The input excel file does not match the required format.")
             errors.conserr(e)
 
-        remps.to_csv(SHAREGS_PARSED_EMPLOYEES, index=False)  
-        rbens.to_csv(SHAREGS_PARSED_BENEFICIERS, index=False)
-        temps.to_csv(SHAREGS_PARSED_TERMINATED, index=False)
+        errors.clean_files(SHAREGS_MATCH_LOG)
+        errors.clean_files(SHAREGS_MATCH_CSV)
+
+        remps.to_csv(csv_f[0], index=False)  
+        rbens.to_csv(csv_f[1], index=False)
+        temps.to_csv(csv_f[2], index=False)
+
+        return csv_f
 
         #if os.path.isfile(conf_file_in[AUTH_FILE_PATH]):
         #    os.remove(conf_file_in[AUTH_FILE_PATH])
